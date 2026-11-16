@@ -318,6 +318,7 @@ td.num,th.num{text-align:right}
     <div class="brand"><i data-ic="box" data-s="18"></i>Distribution</div>
     <div class="grp">Main</div>
     <button class="nl active" data-act="page" data-id="dash"><span data-ic="home" data-s="18"></span>Dashboard</button>
+    <button class="nl" data-act="page" data-id="purchasing"><span data-ic="file" data-s="18"></span>Purchasing</button>
     <button class="nl" data-act="page" data-id="inbound"><span data-ic="anchor" data-s="18"></span>Inbound Shipments</button>
     <button class="nl" data-act="page" data-id="inventory"><span data-ic="layers" data-s="18"></span>Inventory</button>
     <button class="nl" data-act="page" data-id="sales"><span data-ic="truck" data-s="18"></span>Sales &amp; Deliveries</button>
@@ -510,6 +511,51 @@ const incoming=sku=>SHIPMENTS.filter(s=>s.stage<4).reduce((n,s)=>n+s.lines.filte
 const stockState=i=>{const t=totalStock(i);return t===0?["Out","b-bad"]:t<=i.reorder?["Low","b-warn"]:["OK","b-ok"]};
 const extraOf=s=>Object.values(s.costs).reduce((a,b)=>a+b,0);
 const shipCost=s=>s.lines.reduce((n,l)=>n+l.qty*I(l.sku).cost,0)+extraOf(s);
+
+/* ---------- suppliers, purchase orders, payables ---------- */
+const FX=58;
+const SUPPS=[
+ {name:"Supplier A",kind:"International",country:"Thailand",city:"Bangkok",cur:"USD",terms:45,lead:35,port:"Port B",cats:["Beverages","Snacks"],email:"orders@supplier-a.example",phone:"+66 2 000 0000"},
+ {name:"Supplier B",kind:"International",country:"Vietnam",city:"Ho Chi Minh City",cur:"USD",terms:30,lead:28,port:"Port A",cats:["Canned Goods","Dry Goods"],email:"orders@supplier-b.example",phone:"+84 28 0000 0000"},
+ {name:"Supplier C",kind:"International",country:"China",city:"Shenzhen",cur:"USD",terms:60,lead:40,port:"Port A",cats:["Household","Packaging"],email:"orders@supplier-c.example",phone:"+86 755 0000 0000"},
+ {name:"Supplier D",kind:"International",country:"Malaysia",city:"Port Klang",cur:"USD",terms:45,lead:30,port:"Port B",cats:["Personal Care","Snacks"],email:"orders@supplier-d.example",phone:"+60 3 0000 0000"},
+ {name:"Supplier E",kind:"Local",country:"Philippines",city:"Malolos, Bulacan",cur:"PHP",terms:30,lead:3,cats:["Beverages","Dry Goods"],email:"sales@supplier-e.example",phone:"+63 44 000 0000"},
+ {name:"Supplier F",kind:"Local",country:"Philippines",city:"Dasmarinas, Cavite",cur:"PHP",terms:15,lead:2,cats:["Canned Goods","Household"],email:"sales@supplier-f.example",phone:"+63 46 000 0000"},
+ {name:"Supplier G",kind:"Local",country:"Philippines",city:"Cebu City",cur:"PHP",terms:30,lead:5,cats:["Personal Care","Packaging"],email:"sales@supplier-g.example",phone:"+63 32 000 0000"},
+ {name:"Supplier H",kind:"Local",country:"Philippines",city:"Quezon City",cur:"PHP",terms:30,lead:2,cats:["Snacks","Beverages"],email:"sales@supplier-h.example",phone:"+63 2 8000 0000"}
+];
+const SUP=n=>SUPPS.find(x=>x.name===n);
+const originOf=n=>{const x=SUP(n);return x?(x.kind==="Local"?x.city:x.city+", "+x.country):""};
+const dPlus=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const POS=[], BILLS=[]; let poSeq=3120, billSeq=9000, shpSeq=2411;
+const mkBill=b=>{b.id="BILL-"+(++billSeq);b.payments=b.payments||[];BILLS.push(b);return b};
+const poTotal=p=>p.lines.reduce((n,l)=>n+l.qty*l.cost,0);
+const billPaid=b=>b.payments.reduce((n,p)=>n+p.amt,0), billBal=b=>b.amt-billPaid(b);
+const billStat=b=>{if(billBal(b)<=0)return"Paid";const d=dayDiff(b.due,TODAY);return d<0?"Overdue":d<=7?"Due Soon":"Open"};
+const billBadge={Paid:"b-ok",Overdue:"b-bad","Due Soon":"b-warn",Open:"b-info"};
+const poShip=p=>p.shp&&SHIPMENTS.find(x=>x.id===p.shp);
+const poStatus=p=>{const x=poShip(p);return x?(x.stage===4?"Received":"In transit"):p.status};
+const poBadge={Draft:"b-mute",Sent:"b-info",Confirmed:"b-warn","In transit":"b-warn",Received:"b-ok"};
+const creditTotal=()=>RTVS.filter(x=>x.status==="Credit received").reduce((n,x)=>n+x.value,0);
+SHIPMENTS.forEach((sh,k)=>{
+  const sp=SUP(sh.supplier), lines=sh.lines.map(l=>({sku:l.sku,qty:l.qty,cost:I(l.sku).cost}));
+  const po={id:"PO-31"+sh.id.slice(6),sup:sh.supplier,date:dPlus(sh.eta,-sp.lead),expected:sh.eta,wh:sh.wh,lines,shp:sh.id};POS.push(po);
+  const goods=lines.reduce((n,l)=>n+l.qty*l.cost,0), ex=extraOf(sh);
+  const gb=mkBill({sup:sh.supplier,po:po.id,type:"Goods",date:dPlus(sh.eta,-10),due:sh.pay.due,amt:goods});
+  if(sh.pay.paid)gb.payments.push({date:dPlus(sh.pay.due,-2),amt:goods,method:"Wire transfer",ref:"WT-"+(4100+k)});
+  const fb=mkBill({sup:"Forwarder and broker",po:po.id,type:"Freight, duties and fees",date:dPlus(sh.eta,-3),due:dPlus(sh.eta,sh.stage===4?-1:7),amt:ex});
+  if(sh.stage===4)fb.payments.push({date:dPlus(sh.eta,-1),amt:ex,method:"Bank transfer",ref:"BT-"+(5100+k)});
+});
+const LP=(id,sup,ago,exp,wh,status,pairs)=>{const p={id,sup,date:addDays(ago),expected:addDays(exp),wh,status,lines:pairs.map(([n,q])=>({sku:"SKU-"+n,qty:q,cost:I("SKU-"+n).cost}))};POS.push(p);return p};
+LP("PO-3117","Supplier G",0,5,"B","Draft",[[1008,60]]);
+LP("PO-3118","Supplier E",-1,2,"A","Sent",[[1005,120],[1006,80]]);
+LP("PO-3119","Supplier F",-3,1,"B","Confirmed",[[1002,150],[1004,100]]);
+[["PO-3116","Supplier H",-9,-6,"A",[[1001,100],[1007,150]]],["PO-3115","Supplier E",-20,-17,"A",[[1003,200]]],["PO-3114","Supplier F",-42,-40,"B",[[1009,12],[1002,120]]]].forEach((x,k)=>{
+  const p=LP(x[0],x[1],x[2],x[3],x[4],"Received",x[5]);p.recv=p.expected;
+  const amt=poTotal(p), b=mkBill({sup:p.sup,po:p.id,type:"Goods",date:p.recv,due:dPlus(p.recv,SUP(p.sup).terms),amt});
+  if(k===0)b.payments.push({date:addDays(-2),amt:Math.round(amt*.4),method:"Check",ref:"CHK-2204"});
+  if(k===1)b.payments.push({date:addDays(-5),amt,method:"Bank transfer",ref:"BT-5120"});
+});
 const CUSTNAME=id=>CUSTS[id].name;
 makeReturn(ORDERS.find(x=>x.id==="SO-1003"),"SKU-1004",6,"Damaged on delivery","Write off as damage",addDays(-9));
 makeReturn(ORDERS.find(x=>x.id==="SO-1006"),"SKU-1008",10,"Wrong item","Back to stock",addDays(-4));
@@ -555,12 +601,12 @@ function openCart(){
 }
 
 /* ---------- CONSOLE ---------- */
-const PAGES={dash:"Dashboard",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
-let page="dash"; const FIL={inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
+const PAGES={dash:"Dashboard",purchasing:"Purchasing",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
+let page="dash"; const FIL={purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={dash:rDash,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports,returns:rReturns};
+  const R={dash:rDash,purchasing:rPurchasing,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports,returns:rReturns};
   $("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -599,7 +645,7 @@ function rDash(){
 }
 function rInbound(){
   const rows=SHIPMENTS.filter(s=>FIL.inbound==="All"||STAGES[s.stage].k===FIL.inbound);
-  return `${filt("inbound",["All",...STAGES.map(s=>s.k)])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Container</th><th>Supplier</th><th>Port</th><th>ETA</th><th>Warehouse</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.container}</td><td>${s.supplier}</td><td>${s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh]}</td><td><span class="badge ${STAGES[s.stage].cls}">${STAGES[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
+  return `${filt("inbound",["All",...STAGES.map(s=>s.k)])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Supplier</th><th>Point of origin</th><th>Port</th><th>ETA</th><th>To</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.supplier}</td><td>${originOf(s.supplier)}</td><td>${s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh].replace("Warehouse ","Whse ")}</td><td><span class="badge ${STAGES[s.stage].cls}">${STAGES[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
 }
 let ALLOC="Value";
 function shipModal(id,m){
@@ -607,7 +653,7 @@ function shipModal(id,m){
   const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=STAGES[s.stage+1];
   const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
   const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
-  openModal(s.id+" · "+s.container,`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Port</b>${s.port}</div><div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
+  openModal(s.id+" · "+s.container,`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div><div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
    <ul class="tl">${STAGES.map((st,k)=>`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
    <label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
@@ -841,8 +887,8 @@ function rReturns(){
 }
 
 /* ---------- return to vendor (RTV) ---------- */
-const SUPPLIERS=["Supplier A","Supplier B","Supplier C"];
-function supplierOfLot(lot){const m=/^L(\d{4})-/.exec(lot||"");const s=m&&SHIPMENTS.find(x=>x.id==="SHP-"+m[1]);return s?s.supplier:"Supplier A"}
+const SUPPLIERS=SUPPS.map(x=>x.name);
+function supplierOfLot(lot){const q=/^LP(\d{4})-/.exec(lot||"");if(q){const p=POS.find(x=>x.id==="PO-"+q[1]);if(p)return p.sup}const m=/^L(\d{4})-/.exec(lot||"");const s=m&&SHIPMENTS.find(x=>x.id==="SHP-"+m[1]);return s?s.supplier:"Supplier A"}
 function makeRtv(o){
   const it=I(o.sku),r={id:"RTV-"+(++rtvSeq),date:o.date||addDays(0),sku:o.sku,wh:o.wh,qty:o.qty,supplier:o.supplier,reason:o.reason,res:o.res,status:o.status||"Sent to vendor",value:o.qty*it.cost,src:o.src||"Warehouse stock"};
   if(o.takeFromStock)takeStock(it,o.wh,o.qty,true);
@@ -871,6 +917,107 @@ function rtvDone(id){
 }
 function rtvPanel(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Returns to vendor (RTV)</h2><button class="btn btn-primary btn-sm" data-act="rtv-new" data-id="">${ic("plus",14)}New RTV</button></div><div class="tw"><table><thead><tr><th>RTV</th><th>Date</th><th>Vendor</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Vendor to give</th><th>Status</th><th class="num">Value</th><th></th></tr></thead><tbody>${RTVS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.supplier}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td>${r.res==="Credit"?"Credit note":"Replacement"}</td><td><span class="badge ${r.status==="Sent to vendor"?"b-warn":"b-ok"}">${r.status}</span></td><td class="num">${money(r.value)}</td><td>${r.status==="Sent to vendor"?`<button class="btn btn-ghost btn-sm" data-act="rtv-done" data-id="${r.id}">${r.res==="Credit"?"Record credit":"Receive replacement"}</button>`:""}</td></tr>`).join("")||`<tr><td colspan="10">No vendor returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Damaged or expired stock goes back to the supplier. A credit note lowers pending payables; replacement cases return to stock when received.</p></div>`;
+}
+
+/* ---------- purchasing ---------- */
+const kindTag=n=>`<span class="badge ${SUP(n)&&SUP(n).kind==="Local"?"b-mute":"b-info"}">${SUP(n)?(SUP(n).kind==="Local"?"Local":"International"):"Service"}</span>`;
+const supBal=n=>BILLS.filter(b=>b.sup===n).reduce((x,b)=>x+billBal(b),0);
+const usdNote=(n,amt)=>SUP(n)&&SUP(n).cur==="USD"?`About USD ${NUM.format(Math.round(amt/FX))} at ${money(FX)} per USD (sample rate)`:"";
+function rPurchasing(){const t=FIL.purTab;return filt("purTab",["Purchase orders","Suppliers","Payables"])+(t==="Suppliers"?supTab():t==="Payables"?billTab():poTab())}
+function poTab(){
+  const rows=POS.filter(p=>FIL.po==="All"||poStatus(p)===FIL.po).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
+  return `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("po",["All","Draft","Sent","Confirmed","In transit","Received"])}<button class="btn btn-primary btn-sm" data-act="po-new">${ic("plus",14)}New purchase order</button></div>
+  <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th class="num">Cases</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup} ${kindTag(p.sup)}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td class="num">${NUM.format(p.lines.reduce((n,l)=>n+l.qty,0))}</td><td class="num">${money(poTotal(p))}</td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
+}
+function poModal(id){
+  const p=POS.find(x=>x.id===id), sp=SUP(p.sup), st=poStatus(p), tot=poTotal(p), intl=sp.kind==="International", sh=poShip(p), bl=BILLS.filter(b=>b.po===p.id);
+  const flow=intl?["Draft","Sent","Confirmed","In transit","Received"]:["Draft","Sent","Confirmed","Received"], k=flow.indexOf(st);
+  let act="";
+  if(st==="Draft")act=`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Send to supplier</button>`;
+  else if(st==="Sent")act=`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Mark as confirmed</button>`;
+  else if(st==="Confirmed"&&intl)act=`<button class="btn btn-accent" data-act="po-book" data-id="${p.id}">Create inbound shipment</button>`;
+  else if(st==="Confirmed")act=`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Receive at ${WH[p.wh]}</button>`;
+  else if(st==="In transit")act=`<button class="btn btn-accent" data-act="ship" data-id="${sh.id}">Track ${sh.id}</button>`;
+  openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Payment terms</b>Net ${sp.terms} days</div>${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
+   <ul class="tl">${flow.map((x,j)=>`<li class="${j<k?"done":j===k?"cur":""}"><span class="c">${j<k||(j===k&&x==="Received")?ic("check",12):""}</span>${x}</li>`).join("")}</ul>
+   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Unit cost</th><th class="num">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${NUM.format(l.qty)}</td><td class="num">${money(l.cost)}</td><td class="num">${money(l.qty*l.cost)}</td></tr>`).join("")}</tbody></table></div>
+   <div class="sum"><div class="tot"><span>PO total</span><span>${money(tot)}</span></div></div>${intl?`<p class="note">${usdNote(p.sup,tot)}. Freight, duties and port fees are billed separately by the forwarder and broker.</p>`:""}
+   ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}`,
+   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
+}
+function poNext(id){
+  const p=POS.find(x=>x.id===id);
+  if(p.status==="Draft"){p.status="Sent";toast(p.id+" sent to "+p.sup+".")}
+  else if(p.status==="Sent"){p.status="Confirmed";toast(p.id+" confirmed by "+p.sup+".")}
+  else if(p.status==="Confirmed"){
+    p.status="Received";p.recv=addDays(0);
+    p.lines.forEach(l=>{const it=I(l.sku);addStock(it,p.wh,l.qty,"LP"+p.id.slice(3)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});
+    const b=mkBill({sup:p.sup,po:p.id,type:"Goods",date:addDays(0),due:addDays(SUP(p.sup).terms),amt:poTotal(p)});
+    toast(p.id+" received at "+WH[p.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.");
+  }
+  closeModal();renderPage();
+}
+function poBook(id){
+  const p=POS.find(x=>x.id===id), sp=SUP(p.sup), tot=poTotal(p), n=++shpSeq, r=x=>Math.max(1000,Math.round(tot*x/1000)*1000);
+  const sh={id:"SHP-"+n,container:"CNT-000"+(n-2000),supplier:p.sup,port:sp.port||"Port A",eta:addDays(sp.lead),stage:0,wh:p.wh,costs:{freight:r(.06),duties:r(.05),brokerage:r(.012),port:r(.006)},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty}))};
+  sh.pay={due:addDays(sp.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;
+  mkBill({sup:p.sup,po:p.id,type:"Goods",date:addDays(0),due:addDays(sp.terms),amt:tot});
+  mkBill({sup:"Forwarder and broker",po:p.id,type:"Freight, duties and fees",date:addDays(0),due:dPlus(sh.eta,7),amt:extraOf(sh)});
+  closeModal();toast(sh.id+" created for "+p.id+". Track it in Inbound Shipments. Two bills were added to payables.");renderPage();
+}
+function poNew(supName){
+  const sn=typeof supName==="string"&&SUP(supName)?supName:"Supplier E", sp=SUP(sn);
+  let sug=ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
+  const sugd=sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
+  const row=k=>{const it=sug[k],q=it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):"";
+    return `<div style="display:grid;grid-template-columns:1fr 80px 96px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" type="number" min="0" value="${q}" aria-label="Cases"><input id="poCost${k}" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
+  openModal("New purchase order",`<div class="grid2"><label class="f">Supplier<select id="poSup" data-chg="posup">${["International","Local"].map(g=>`<optgroup label="${g}">${SUPPS.filter(x=>x.kind===g).map(x=>`<option ${x.name===sn?"selected":""}>${x.name} (${x.country})</option>`.replace("<option ",`<option value="${x.name}" `)).join("")}</optgroup>`).join("")}</select></label>
+   <label class="f">Deliver to<select id="poWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label></div>
+   <p class="note" style="margin:0 0 8px">${sp.kind} supplier, Net ${sp.terms} days, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
+   <div style="display:grid;grid-template-columns:1fr 80px 96px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Cases</span><span>Unit cost</span></div>${row(0)}${row(1)}${row(2)}`,
+   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">Save as draft</button>`);
+}
+function poCreate(){
+  const sn=$("#poSup").value, lines=[0,1,2].map(k=>({sku:$("#poItem"+k).value,qty:parseInt($("#poQty"+k).value)||0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
+  if(!lines.length){toast("Add at least one item with a quantity.");return}
+  lines.forEach(l=>{if(!l.cost)l.cost=I(l.sku).cost});
+  const p={id:"PO-"+(++poSeq),sup:sn,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines};POS.push(p);
+  FIL.po="All";closeModal();toast(p.id+" saved as a draft for "+sn+": "+money(poTotal(p))+".");renderPage();
+}
+function supTab(){
+  const rows=SUPPS.filter(x=>FIL.supKind==="All"||x.kind===FIL.supKind), nl=SUPPS.filter(x=>x.kind==="Local").length, op=POS.filter(p=>poStatus(p)!=="Received"&&poStatus(p)!=="Draft");
+  const bal=BILLS.reduce((n,b)=>n+billBal(b),0);
+  return `<div class="kpis">${kpi("users","Suppliers",SUPPS.length,nl+" local, "+(SUPPS.length-nl)+" international")}${kpi("file","Open purchase orders",op.length,money(op.reduce((n,p)=>n+poTotal(p),0))+" on order")}${kpi("card","Payable balance",money(bal),"All bills")}</div>
+  ${filt("supKind",["All","Local","International"])}<div class="panel"><div class="tw"><table><thead><tr><th>Supplier</th><th>Type</th><th>Location</th><th>Terms</th><th>Supplies</th><th class="num">Open POs</th><th class="num">Balance</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.name}</b></td><td>${kindTag(x.name)}</td><td>${originOf(x.name)}</td><td>Net ${x.terms}</td><td>${x.cats.join(", ")}</td><td class="num">${op.filter(p=>p.sup===x.name).length}</td><td class="num">${money(supBal(x.name))}</td><td><button class="btn btn-ghost btn-sm" data-act="sup" data-id="${x.name}">View</button></td></tr>`).join("")}</tbody></table></div></div>`;
+}
+function supModal(n){
+  const x=SUP(n), pl=POS.filter(p=>p.sup===n).sort((a,b)=>b.date-a.date), bl=BILLS.filter(b=>b.sup===n&&billBal(b)>0);
+  openModal(n,`<div class="kv"><div><b>Type</b>${x.kind}</div><div><b>Location</b>${x.city}, ${x.country}</div><div><b>Currency</b>${x.cur}</div><div><b>Payment terms</b>Net ${x.terms} days</div><div><b>Lead time</b>${x.lead} days${x.kind==="International"?" including shipping":""}</div><div><b>Supplies</b>${x.cats.join(", ")}</div><div><b>Email</b>${x.email}</div><div><b>Phone</b>${x.phone}</div></div>
+  <h4 style="margin-bottom:6px">Purchase orders</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${pl.map(p=>`<tr><td>${p.id}</td><td>${dfmt(p.date)}</td><td><span class="badge ${poBadge[poStatus(p)]}">${poStatus(p)}</span></td><td class="num">${money(poTotal(p))}</td></tr>`).join("")||`<tr><td>None yet.</td></tr>`}</tbody></table></div>
+  <div class="sum"><div class="tot"><span>Balance payable</span><span>${money(bl.reduce((a,b)=>a+billBal(b),0))}</span></div></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button><button class="btn btn-accent" data-act="po-new" data-id="${n}">New purchase order</button>`);
+}
+function billTab(){
+  const f=FIL.bills, all=BILLS.slice().sort((a,b)=>(billBal(a)<=0)-(billBal(b)<=0)||a.due-b.due), open=all.filter(b=>billBal(b)>0), cr=creditTotal();
+  const od=open.filter(b=>billStat(b)==="Overdue"), soon=open.filter(b=>billStat(b)==="Due Soon"), paid30=BILLS.reduce((n,b)=>n+b.payments.filter(p=>inP(p.date,30)).reduce((m,p)=>m+p.amt,0),0);
+  const sm=a=>a.reduce((n,b)=>n+billBal(b),0), rows=all.filter(b=>f==="All"||billStat(b)===f);
+  return `<div class="kpis">${kpi("card","Total payable",money(Math.max(0,sm(open)-cr)),open.length+" unpaid bills"+(cr?", less "+money(cr)+" credit notes":""))}${kpi("alert","Overdue",money(sm(od)),od.length+(od.length===1?" bill":" bills"))}${kpi("truck","Due in 7 days",money(sm(soon)),soon.length+(soon.length===1?" bill":" bills"))}${kpi("check","Paid, last 30 days",money(paid30),"")}</div>
+  ${filt("bills",["All","Open","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Bill</th><th>Payee</th><th>PO</th><th>Due</th><th>Status</th><th class="num">Amount</th><th class="num">Balance</th><th></th></tr></thead><tbody>${rows.map(b=>{const s=billStat(b);return `<tr><td><b>${b.id}</b></td><td>${b.sup}<div class="note" style="margin:0">${b.type}</div></td><td>${b.po}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[s]}">${s}</span></td><td class="num">${money(b.amt)}</td><td class="num">${money(billBal(b))}</td><td><button class="btn btn-ghost btn-sm" data-act="bill" data-id="${b.id}">${billBal(b)>0?"Pay":"View"}</button></td></tr>`}).join("")}</tbody></table></div>${cr?`<p class="note" style="margin-top:8px">Credit notes from suppliers (returns to vendor) of ${money(cr)} are deducted from the total payable.</p>`:""}</div>`;
+}
+function billModal(id){
+  const b=BILLS.find(x=>x.id===id), bal=billBal(b), s=billStat(b), sp=SUP(b.sup), intl=sp&&sp.kind==="International"&&b.type==="Goods";
+  openModal(b.id+" · "+b.sup,`<div class="kv"><div><b>Purchase order</b>${b.po}</div><div><b>Status</b><span class="badge ${billBadge[s]}">${s}</span></div><div><b>Type</b>${b.type}</div><div><b>Due</b>${dfmt(b.due)}</div></div>
+  <div class="sum" style="margin:0 0 14px"><div><span>Bill amount</span><span>${money(b.amt)}</span></div><div><span>Paid so far</span><span>${money(billPaid(b))}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
+  ${intl?`<p class="note" style="margin:-6px 0 12px">${usdNote(b.sup,b.amt)}.</p>`:""}
+  ${b.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${b.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
+  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="bpAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="bpMethod">${(intl?["Wire transfer","Bank transfer","Check"]:["Bank transfer","Check","Cash"]).map(m=>`<option>${m}</option>`).join("")}</select></label></div><label class="f">Reference<input id="bpRef" placeholder="Check no. or transfer ref."></label>`:""}`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0?`<button class="btn btn-accent" data-act="bill-pay" data-id="${b.id}">Save payment</button>`:""}`);
+}
+function billPay(id){
+  const b=BILLS.find(x=>x.id===id), bal=billBal(b), amt=Math.min(bal,Math.round(parseFloat($("#bpAmt").value)||0));
+  if(amt<=0){toast("Enter an amount to pay.");return}
+  b.payments.push({date:addDays(0),amt,method:$("#bpMethod").value,ref:$("#bpRef").value.trim()||"REF-"+(7000+BILLS.length)});
+  closeModal();toast(money(amt)+" paid to "+b.sup+" for "+b.id+(billBal(b)>0?". Balance "+money(billBal(b))+".":". Bill fully paid."));renderPage();
 }
 
 /* ---------- reports ---------- */
@@ -905,9 +1052,9 @@ function rReports(){
     title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
     body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Cases",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
   }else if(r==="Payables"){
-    title="Pending payables";const cr=sumBy(RTVS.filter(x=>x.status==="Credit received"),x=>x.value);const P=SHIPMENTS.filter(s=>!s.pay.paid).sort((a,b)=>a.pay.due-b.pay.due);
-    kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(Math.max(0,sumBy(P,shipCost)-cr)),P.length+" unpaid bills, less "+money(cr)+" RTV credits")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
-    body=tbl([["Shipment"],["Supplier"],["Due date"],["Status"],["Amount",1],[""]],P.map(s=>{const d=dayDiff(s.pay.due,TODAY);return [s.id,s.supplier,dfmt(s.pay.due),`<span class="badge ${d<0?"b-bad":d<=7?"b-warn":"b-info"}">${d<0?-d+" days overdue":d===0?"Due today":"Due in "+d+" days"}</span>`,money(shipCost(s)),`<button class="btn btn-ghost btn-sm" data-act="sup-paid" data-id="${s.id}">Mark paid</button>`]}),["Total pending (less "+money(cr)+" RTV credits)","","","",money(Math.max(0,sumBy(P,shipCost)-cr)),""]);
+    title="Pending payables";const cr=creditTotal(),P=BILLS.filter(b=>billBal(b)>0).sort((a,b)=>a.due-b.due),net=Math.max(0,sumBy(P,billBal)-cr);
+    kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(net),P.length+" unpaid bills, less "+money(cr)+" RTV credits")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
+    body=tbl([["Bill"],["Payee"],["Type"],["Due date"],["Status"],["Balance",1],[""]],P.map(b=>[b.id,b.sup,b.type,dfmt(b.due),`<span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span>`,money(billBal(b)),`<button class="btn btn-ghost btn-sm" data-act="bill" data-id="${b.id}">Pay</button>`]),["Total pending (less "+money(cr)+" RTV credits)","","","","",money(net),""]);
   }else{
     title="Sales by customer";const m={};ORDERS.filter(o=>o.status==="Delivered"&&inP(o.delivered,n)).forEach(o=>{const x=m[o.cust]=m[o.cust]||{o:0,c:0,v:0};x.o++;x.c+=caseCt(o);x.v+=orderTotal(o)});
     const E=Object.entries(m).sort((a,b)=>b[1].v-a[1].v);
@@ -1007,12 +1154,15 @@ document.addEventListener("click",e=>{
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
-  else if(a==="sup-paid"){SHIPMENTS.find(x=>x.id===id).pay.paid=true;toast(id+" marked as paid.");renderPage()}
+  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")poBook(id);
+  else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
 $("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset();toast("Application received. We will contact you within one business day.")});
 document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(!t)return;const c=t.dataset.chg;
   if(c==="alloc")shipModal(t.dataset.id,t.value);
+  else if(c==="posup")poNew(t.value);
+  else if(c==="poitem"){const it=I(t.value);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
   else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
   else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
 });
