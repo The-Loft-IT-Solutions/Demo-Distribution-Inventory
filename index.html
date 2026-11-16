@@ -297,12 +297,8 @@ td.num,th.num{text-align:right}
     </div>
   </div></section>
   <section class="sec" id="p-terms"><div class="in">
-    <h2 class="display">Credit terms</h2><p class="lead">Terms are set per trade account after a short review.</p>
-    <div class="quotes">
-      <blockquote>"Net 30 keeps our cash flow simple for fast-moving items."<cite>Sample Client, Retailer</cite></blockquote>
-      <blockquote>"Net 45 lets us sell through a delivery before the invoice falls due."<cite>Sample Client, Store Owner</cite></blockquote>
-      <blockquote>"Net 60 on pallet orders made bulk buying realistic for us."<cite>Sample Client, Wholesale Buyer</cite></blockquote>
-    </div>
+    <h2 class="display">Credit terms</h2><p class="lead">Terms are set per trade account after a short review. These are the usual starting points.</p>
+    <div class="panel" style="padding:0"><div class="tw"><table><thead><tr><th>Customer type</th><th>Usual terms</th><th>Credit limit</th></tr></thead><tbody><tr><td>Retailer</td><td>Net 15 or Net 30</td><td>Up to &#8369;150,000</td></tr><tr><td>Sub-distributor</td><td>Net 30 to Net 60</td><td>Up to &#8369;400,000</td></tr><tr><td>Institution</td><td>Net 45 or Net 60</td><td>Up to &#8369;300,000</td></tr></tbody></table></div></div>
   </div></section>
   <section class="sec" id="p-contact" style="background:var(--mutebg)"><div class="in" style="max-width:640px">
     <h2 class="display">Open a trade account</h2><p class="lead">Tell us about your business and we will set up your account and terms.</p>
@@ -547,7 +543,7 @@ function renderCatalog(){
   const cq=(FIL.catQ||"").toLowerCase(),cc=FIL.catC||"All categories",pc=$("#pcat");if(!pc.options.length)pc.innerHTML=["All categories",...Object.keys(CATS)].map(c=>`<option>${c}</option>`).join("");
   const crows=ITEMS.filter(i=>(cc==="All categories"||i.cat===cc)&&(!cq||i.name.toLowerCase().includes(cq)||i.sku.toLowerCase().includes(cq))),shown=Math.min(crows.length,FIL.catN||12);
   $("#pLines").textContent=ITEMS.length;$("#pmore").innerHTML=`<span>Showing ${shown} of ${crows.length} products</span>${shown<crows.length?`<button class="btn btn-ghost btn-sm" data-act="cat-more">Show more</button>`:""}`;
-  $("#prods").innerHTML=crows.slice(0,shown).map(i=>`<div class="prod"><div class="pic">${ic("box",36)}</div><h3>${i.name}</h3><div class="meta">${i.sku} &middot; ${i.cat}</div><div class="pr">${money(i.price)} <span class="meta">/ case</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
+  $("#prods").innerHTML=crows.slice(0,shown).map(i=>`<div class="prod"><h3>${i.name}</h3><div class="meta">${i.sku} &middot; ${i.cat}</div><div class="pr">${money(i.price)} <span class="meta">/ case</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
   $("#cartN").textContent=Object.values(cart).reduce((a,b)=>a+b,0);
 }
 function openCart(){
@@ -575,25 +571,31 @@ function unitsOut(days){
 }
 const outstanding=()=>INVOICES.reduce((n,i)=>n+(i.amount-i.paid),0);
 const overdueAmt=()=>INVOICES.filter(i=>invStatus(i)==="Overdue").reduce((n,i)=>n+(i.amount-i.paid),0);
+function activity(){
+  const ev=[];
+  SHIPMENTS.filter(s=>s.stage>=1).forEach(s=>ev.push({d:s.eta,t:s.id+(s.stage===4?" received at "+WH[s.wh]:" "+STAGES[s.stage].t.toLowerCase())}));
+  ORDERS.filter(o=>o.status==="Out for Delivery").forEach(o=>ev.push({d:o.date,t:o.id+" out for delivery to "+CUSTNAME(o.cust)}));
+  ORDERS.filter(o=>o.status==="Delivered"&&o.delivered).forEach(o=>ev.push({d:o.delivered,t:o.id+" delivered to "+CUSTNAME(o.cust)}));
+  INVOICES.forEach(i=>i.payments.forEach(p=>ev.push({d:p.date,t:"Payment of "+money(p.amt)+" on "+i.id+" ("+p.method+")"})));
+  RETURNS.forEach(r=>ev.push({d:r.date,t:r.id+": "+r.qty+" cases returned by "+CUSTNAME(r.cust)}));
+  DAMAGES.forEach(d=>ev.push({d:d.date,t:d.id+" damage report, "+d.qty+" cases of "+I(d.sku).name.split(" (")[0]}));
+  const ago=d=>{const n=dayDiff(TODAY,d);return n<=0?"Today":n===1?"Yesterday":n+" days ago"};
+  return ev.filter(e=>e.d<=TODAY).sort((a,b)=>b.d-a.d).slice(0,6).map(e=>`<li><span class="dot"></span><div>${e.t}<small>${ago(e.d)}</small></div></li>`).join("");
+}
 function rDash(){
   const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), val=ITEMS.reduce((n,i)=>n+totalStock(i)*i.cost,0);
   const inb=SHIPMENTS.filter(s=>s.stage<4).length, openSO=ORDERS.filter(o=>o.status!=="Delivered").length, ofd=ORDERS.filter(o=>o.status==="Out for Delivery").length;
-  const uo=unitsOut(30).slice(0,6), mx=Math.max(1,...uo.map(x=>x.q));
-  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" cases on hand")}${kpi("anchor","Inbound shipments",inb,"Port to warehouse")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("card","Receivables",money(outstanding()),"Open invoices")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}${kpi("alert","Near expiry",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Within 30 days")}</div>
+  const uoAll=unitsOut(30), uo=uoAll.slice().sort((a,b)=>b.q-a.q).slice(0,6), mx=Math.max(1,...uo.map(x=>x.q));
+  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" cases on hand")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}${kpi("alert","Near expiry",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Within 30 days")}</div>
   <div class="pipe">
    <button data-act="page" data-id="inbound"><div class="st">1 Port</div><div class="n">${inb}</div><div class="t">Shipments inbound</div><div class="d">Sea, port, customs, trucking</div></button>
    <button data-act="page" data-id="inventory"><div class="st">2 Warehouse</div><div class="n">${NUM.format(units)}</div><div class="t">Cases in stock</div><div class="d">${ITEMS.filter(i=>stockState(i)[0]!=="OK").length} items at or below reorder</div></button>
-   <button data-act="page" data-id="sales"><div class="st">3 Sales</div><div class="n">${NUM.format(uo.reduce((n,x)=>n+x.q,0))}</div><div class="t">Cases out (30 days)</div><div class="d">Counted per item</div></button>
+   <button data-act="page" data-id="sales"><div class="st">3 Sales</div><div class="n">${NUM.format(uoAll.reduce((n,x)=>n+x.q,0))}</div><div class="t">Cases out (30 days)</div><div class="d">Counted per item</div></button>
    <button data-act="page" data-id="sales"><div class="st">4 Delivery</div><div class="n">${ofd}</div><div class="t">Out for delivery</div><div class="d">${openSO-ofd} waiting to dispatch</div></button>
    <button data-act="page" data-id="collections"><div class="st">5 Collections</div><div class="n">${money(outstanding())}</div><div class="t">To collect</div><div class="d">15 to 60 day terms</div></button>
   </div>
   <div class="two"><div class="panel"><h2>Cases out by item (last 30 days)</h2><div class="bars">${uo.map(x=>`<div class="bar"><span>${I(x.sku).name.split(" (")[0]}</span><div class="tr"><div class="fl" style="width:${Math.round(x.q/mx*100)}%"></div></div><b>${NUM.format(x.q)}</b></div>`).join("")}</div></div>
-  <div class="panel"><h2>Recent activity</h2><ul class="feed">
-   <li><span class="dot"></span><div>SHP-2408 arrived at Port A<small>Today</small></div></li>
-   <li><span class="dot"></span><div>SO-1011 and SO-1012 out for delivery<small>Today</small></div></li>
-   <li><span class="dot"></span><div>Payment received on INV-5019<small>Yesterday</small></div></li>
-   <li><span class="dot"></span><div>SHP-2407 received at Warehouse B<small>6 days ago</small></div></li>
-   <li><span class="dot"></span><div>Customer C account moved to Net 45<small>1 week ago</small></div></li></ul></div></div>`;
+  <div class="panel"><h2>Recent activity</h2><ul class="feed">${activity()}</ul></div></div>`;
 }
 function rInbound(){
   const rows=SHIPMENTS.filter(s=>FIL.inbound==="All"||STAGES[s.stage].k===FIL.inbound);
