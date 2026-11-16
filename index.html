@@ -79,6 +79,8 @@ svg{flex-shrink:0}
 /* Forms */
 label.f{display:block;font-size:13px;font-weight:600;margin-bottom:12px}
 .porow input,.porow select{display:block;width:100%;min-width:0;min-height:44px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-weight:400}
+.daterange{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.daterange input{min-height:38px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit;color:inherit}
 .rolebox{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
 .rolebox select{min-height:36px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:13px;color:var(--ink,#1B1F2E)}
 @media(max-width:700px){.rolebox{font-size:0}.rolebox select{font-size:12px;max-width:120px}}
@@ -691,7 +693,7 @@ function renderPage(){
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
 const kpi=(icn,k,v,s)=>`<div class="kpi"><div class="k">${ic(icn,16)}${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
 function unitsOut(days){
-  const m={};ORDERS.filter(o=>(o.status==="Delivered"||o.status==="Out for Delivery")&&dayDiff(TODAY,o.delivered||o.date)<=days).forEach(o=>o.lines.forEach(l=>{m[l.sku]=m[l.sku]||{q:0,v:0};m[l.sku].q+=l.qty;m[l.sku].v+=l.qty*I(l.sku).price}));
+  const m={};ORDERS.filter(o=>(o.status==="Delivered"||o.status==="Out for Delivery")&&(days<0?inCustom(o.delivered||o.date):dayDiff(TODAY,o.delivered||o.date)<=days)).forEach(o=>o.lines.forEach(l=>{m[l.sku]=m[l.sku]||{q:0,v:0};m[l.sku].q+=l.qty;m[l.sku].v+=l.qty*I(l.sku).price}));
   return Object.entries(m).map(([sku,x])=>({sku,...x})).sort((a,b)=>b.v-a.v);
 }
 const outstanding=()=>INVOICES.reduce((n,i)=>n+(i.amount-i.paid),0);
@@ -1353,8 +1355,12 @@ function billPay(id){
 }
 
 /* ---------- reports ---------- */
-const PD={"7 days":7,"30 days":30,"90 days":90};
-const inP=(d,n)=>{if(!d)return false;const x=dayDiff(TODAY,d);return x>=0&&x<=n};
+const PD={"7 days":7,"30 days":30,"90 days":90,"Custom":-1};
+const ymdv=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const rFrom=()=>new Date((FIL.repFrom||ymdv(addDays(-30)))+"T00:00:00"), rTo=()=>new Date((FIL.repTo||ymdv(addDays(0)))+"T00:00:00");
+const inCustom=d=>{if(!d)return false;const t=new Date(d).getTime();return t>=rFrom().getTime()&&t<rTo().getTime()+864e5};
+const perLbl=n=>n<0?dfmt(rFrom())+" to "+dfmt(rTo()):"last "+n+" days";
+const inP=(d,n)=>{if(!d)return false;if(n<0)return inCustom(d);const x=dayDiff(TODAY,d);return x>=0&&x<=n};
 const sumBy=(a,f)=>a.reduce((n,x)=>n+f(x),0);
 const caseCt=o=>sumBy(o.lines,l=>l.qty);
 const tbl=(head,rows,total)=>`<div class="tw"><table id="repTable"><thead><tr>${head.map(h=>`<th${h[1]?' class="num"':""}>${h[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${head.length}">No records in this period.</td></tr>`}${total?`<tr class="tr-total">${total.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
@@ -1369,7 +1375,7 @@ function rReports(){
     body=tbl([["Item"],["Category"],["Qty out",1],["Sales value",1]],U.map(x=>[I(x.sku).name,I(x.sku).cat,NUM.format(x.q),money(x.v)]),["Total","",NUM.format(sumBy(U,x=>x.q)),money(sumBy(U,x=>x.v))]);
   }else if(r==="Orders"){
     title="Total orders";const O=ORDERS.filter(o=>inP(o.date,n)).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
-    kp=`<div class="kpis">${kpi("file","Total orders",NUM.format(O.length),"Last "+n+" days")}${kpi("check","Delivered",NUM.format(O.filter(o=>o.status==="Delivered").length),"")}${kpi("truck","In progress",NUM.format(O.filter(o=>["Pending","Packed","Out for Delivery"].includes(o.status)).length),"")}${kpi("alert","On credit hold",NUM.format(O.filter(o=>o.status==="Credit Hold").length),"")}${kpi("card","Order value",money(sumBy(O,orderTotal)),"")}</div>`;
+    kp=`<div class="kpis">${kpi("file","Total orders",NUM.format(O.length),n<0?perLbl(n):"Last "+n+" days")}${kpi("check","Delivered",NUM.format(O.filter(o=>o.status==="Delivered").length),"")}${kpi("truck","In progress",NUM.format(O.filter(o=>["Pending","Packed","Out for Delivery"].includes(o.status)).length),"")}${kpi("alert","On credit hold",NUM.format(O.filter(o=>o.status==="Credit Hold").length),"")}${kpi("card","Order value",money(sumBy(O,orderTotal)),"")}</div>`;
     body=tbl([["Order"],["Customer"],["Date"],["Delivery"],["Status"],["Amount",1]],O.slice(0,20).map(o=>[o.id,CUSTNAME(o.cust),dfmt(o.date),o.via==="Courier"?"Courier":"Own truck",`<span class="badge ${ordBadge[o.status]}">${o.status}</span>`,money(orderTotal(o))]),["Total ("+O.length+" orders)","","","","",money(sumBy(O,orderTotal))])+(O.length>20?`<p class="note" style="margin-top:8px">Showing the latest 20 orders. Export to CSV for the full list.</p>`:"");
   }else if(r==="Sales invoices"){
     title="Total sales invoices";const V=INVOICES.filter(i=>inP(i.issued,n)).sort((a,b)=>b.issued-a.issued);
@@ -1390,10 +1396,10 @@ function rReports(){
   }else{
     title="Sales by customer";const m={};ORDERS.filter(o=>o.status==="Delivered"&&inP(o.delivered,n)).forEach(o=>{const x=m[o.cust]=m[o.cust]||{o:0,c:0,v:0};x.o++;x.c+=caseCt(o);x.v+=orderTotal(o)});
     const E=Object.entries(m).sort((a,b)=>b[1].v-a[1].v);
-    kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, last "+n+" days")}${kpi("users","Customers served",E.length,"")}${kpi("layers","Units sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
+    kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, "+perLbl(n))}${kpi("users","Customers served",E.length,"")}${kpi("layers","Units sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
     body=tbl([["Customer"],["Type"],["Orders",1],["Qty",1],["Sales",1]],E.slice(0,15).map(([k,x])=>[CUSTNAME(k),CUSTS[k].type,x.o,NUM.format(x.c),money(x.v)]),["Total ("+E.length+" customers)","",sumBy(E,e=>e[1].o),NUM.format(sumBy(E,e=>e[1].c)),money(sumBy(E,e=>e[1].v))])+(E.length>15?`<p class="note" style="margin-top:8px">Showing the top 15 customers. Export to CSV for the full list.</p>`:"");
   }
-  return `${filt("rep",REPS)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days"])}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
+  return `${filt("rep",REPS)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days","Custom"])}${r!=="Payables"&&FIL.repP==="Custom"?`<span class="daterange"><label>From <input type="date" value="${FIL.repFrom||ymdv(addDays(-30))}" data-chg="repdate" data-id="from" aria-label="From date"></label><label>To <input type="date" value="${FIL.repTo||ymdv(addDays(0))}" data-chg="repdate" data-id="to" aria-label="To date"></label></span>`:""}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
 }
 function csvExport(){
   const t=$("#repTable");if(!t)return;
@@ -1504,6 +1510,8 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
   else if(c==="uitem"){const e=$("#"+t.dataset.id);if(e)e.innerHTML=unitOpts(I(t.value));nsStockUpd()}
   else if(c==="nsstock")nsStockUpd()
+  else if(c==="repdate"){if(!t.value)return;FIL[t.dataset.id==="from"?"repFrom":"repTo"]=t.value;if(!FIL.repFrom)FIL.repFrom=ymdv(addDays(-30));if(!FIL.repTo)FIL.repTo=ymdv(addDays(0));
+    if(FIL.repFrom>FIL.repTo){if(t.dataset.id==="from")FIL.repTo=FIL.repFrom;else FIL.repFrom=FIL.repTo;toast("The start date was after the end date, so I matched them.")}renderPage()}
   else if(c==="role"){ROLE=t.value;applyRole();if(!pageOK(page))setPage("dash");else renderPage();toast("Now viewing as "+ROLE+".")}
   else if(c==="stockrule"){SET.stockRule=t.value;toast(t.value==="block"?"Orders above available stock are now blocked.":"Orders above available stock are now allowed.")}
   else if(c==="poitem"){const it=I(t.value);if(it)$("#poU"+t.dataset.id).innerHTML=unitOpts(it);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
