@@ -447,6 +447,12 @@ const STAGES=[
  {k:"Customs",t:"Customs clearance",cls:"b-warn"},{k:"In Transit",t:"Trucking to warehouse",cls:"b-warn"},
  {k:"Received",t:"Received at warehouse",cls:"b-ok"}
 ];
+const STAGES_SEA=[
+ {k:"To Port",t:"Trucking to the origin port",cls:"b-warn"},{k:"At Sea",t:"On the vessel",cls:"b-info"},
+ {k:"At Port",t:"Arrived at the port of arrival",cls:"b-info"},{k:"In Transit",t:"Trucking to warehouse",cls:"b-warn"},
+ {k:"Received",t:"Received at warehouse",cls:"b-ok"}
+];
+const stg=s=>s.sea?STAGES_SEA:STAGES;
 const L=(a)=>a.map(([n,q])=>({sku:"SKU-"+n,qty:q}));
 const SHIPMENTS=[
  {id:"SHP-2411",container:"CNT-000411",supplier:"Supplier A",port:"Port A",eta:addDays(9),stage:0,wh:"A",costs:{freight:96000,duties:62000,brokerage:18000,port:10000},lines:L([[1001,400],[1003,200],[1007,600]])},
@@ -537,7 +543,7 @@ const VEHICLES=[
 ];
 const VTYPES=["Closed van","Wing van","6-wheeler truck","10-wheeler truck","Trailer"]; let vhSeq=3;
 const vehOf=o=>o.via==="Courier"?null:VEHICLES.find(v=>v.driver===o.driver);
-const vehRoute=v=>ORDERS.some(o=>o.status==="Out for Delivery"&&o.via!=="Courier"&&o.driver===v.driver)||SHIPMENTS.some(x=>x.stage===3&&x.veh&&x.veh.plate===v.plate);
+const vehRoute=v=>ORDERS.some(o=>o.status==="Out for Delivery"&&o.via!=="Courier"&&o.driver===v.driver)||SHIPMENTS.some(x=>(x.stage===3&&x.veh&&x.veh.plate===v.plate)||(x.stage===0&&x.veh1&&x.veh1.plate===v.plate));
 const vehStatus=v=>v.maint?"Maintenance":vehRoute(v)?"On route":"Available";
 const vehBadge={Available:"b-ok","On route":"b-warn",Maintenance:"b-bad"};
 const SUP=n=>SUPPS.find(x=>x.name===n);
@@ -571,6 +577,8 @@ LP("PO-3119","Supplier F",-3,1,"B","Confirmed",[[1002,150],[1004,100]]);
 
 POS.forEach(p=>{p.terms=SUP(p.sup).terms;p.dp=0});
 {const q=LP("PO-3120","Supplier H",-2,1,"A","Confirmed",[[1010,40]]);q.shp="SHP-2405";SHIPMENTS.push({id:"SHP-2405",container:"",bl:"",supplier:"Supplier H",port:"Direct delivery",eta:q.expected,stage:3,wh:"A",costs:{freight:0,duties:0,brokerage:0,port:0},lines:q.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,veh:{plate:"SUP 7702",type:"Closed van",driver:"Supplier driver",owner:"Supplier H"},pay:{due:addDays(30),paid:false}})}
+{const q=LP("PO-3113","Supplier G",-6,6,"B","Confirmed",[[1009,30],[1006,60]]);q.shp="SHP-2404";SHIPMENTS.push({id:"SHP-2404",container:"",bl:"",supplier:"Supplier G",port:"Port B",eta:q.expected,stage:1,wh:"B",costs:{freight:18000,duties:0,brokerage:0,port:2500},lines:q.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,sea:{line:"Vessel line K",bl:"WB-30412",origin:"Cebu port"},veh1:{plate:"NAA 1234",type:"Closed van",driver:"Driver A",owner:"Own"},pay:{due:addDays(30),paid:false}});
+  mkBill({sup:"Shipping line and trucker",po:q.id,type:"Freight, duties and fees",date:addDays(-5),due:addDays(10),amt:20500})}
 {const p=POS.find(x=>x.id==="PO-3119");p.dp=50;const amt=poTotal(p)/2,b=mkBill({sup:p.sup,po:p.id,type:"Down payment (50%)",date:addDays(-2),due:addDays(-1),amt});b.payments.push({date:addDays(-1),amt,method:"Bank transfer",ref:"BT-5130"})}
 [["PO-3116","Supplier H",-9,-6,"A",[[1001,100],[1007,150]]],["PO-3115","Supplier E",-20,-17,"A",[[1003,200]]],["PO-3114","Supplier F",-42,-40,"B",[[1009,12],[1002,120]]]].forEach((x,k)=>{
   const p=LP(x[0],x[1],x[2],x[3],x[4],"Received",x[5]);p.recv=p.expected;
@@ -641,7 +649,7 @@ const outstanding=()=>INVOICES.reduce((n,i)=>n+(i.amount-i.paid),0);
 const overdueAmt=()=>INVOICES.filter(i=>invStatus(i)==="Overdue").reduce((n,i)=>n+(i.amount-i.paid),0);
 function activity(){
   const ev=[];
-  SHIPMENTS.filter(s=>s.stage>=1).forEach(s=>ev.push({d:s.eta,t:s.id+(s.stage===4?" received at "+WH[s.wh]:" "+STAGES[s.stage].t.toLowerCase())}));
+  SHIPMENTS.filter(s=>s.stage>=1).forEach(s=>ev.push({d:s.eta,t:s.id+(s.stage===4?" received at "+WH[s.wh]:" "+stg(s)[s.stage].t.toLowerCase())}));
   ORDERS.filter(o=>o.status==="Out for Delivery").forEach(o=>ev.push({d:o.date,t:o.id+" out for delivery to "+CUSTNAME(o.cust)}));
   ORDERS.filter(o=>o.status==="Delivered"&&o.delivered).forEach(o=>ev.push({d:o.delivered,t:o.id+" delivered to "+CUSTNAME(o.cust)}));
   INVOICES.forEach(i=>i.payments.forEach(p=>ev.push({d:p.date,t:"Payment of "+money(p.amt)+" on "+i.id+" ("+p.method+")"})));
@@ -666,30 +674,30 @@ function rDash(){
   <div class="panel"><h2>Recent activity</h2><ul class="feed">${activity()}</ul></div></div>`;
 }
 function rInbound(){
-  const rows=SHIPMENTS.filter(s=>FIL.inbound==="All"||STAGES[s.stage].k===FIL.inbound);
-  return `${filt("inbound",["All",...STAGES.map(s=>s.k)])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Supplier</th><th>Point of origin</th><th>Port</th><th>ETA</th><th>To</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.supplier}</td><td>${originOf(s.supplier)}</td><td>${s.local?"Direct":s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh].replace("Warehouse ","Whse ")}</td><td><span class="badge ${STAGES[s.stage].cls}">${STAGES[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
+  const rows=SHIPMENTS.filter(s=>FIL.inbound==="All"||stg(s)[s.stage].k===FIL.inbound);
+  return `${filt("inbound",["All","To Port","At Sea","At Port","Customs","In Transit","Received"])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Supplier</th><th>Point of origin</th><th>Port</th><th>ETA</th><th>To</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.supplier}</td><td>${originOf(s.supplier)}</td><td>${s.local&&!s.sea?"Direct":s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh].replace("Warehouse ","Whse ")}</td><td><span class="badge ${stg(s)[s.stage].cls}">${stg(s)[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
 }
 let ALLOC="Value";
 function shipModal(id,m){
   if(m)ALLOC=m;
-  const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=STAGES[s.stage+1];
+  const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=stg(s)[s.stage+1];
   const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
   const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
-  openModal(s.id+" · "+(s.container||"Local delivery"),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}${s.veh?`<div><b>Vehicle</b>${s.veh.plate}, ${s.veh.type}</div><div><b>Driver</b>${s.veh.driver}${s.veh.owner==="Own"?" (own)":", "+s.veh.owner}</div>`:""}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
-   <ul class="tl">${STAGES.map((st,k)=>s.local&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
-   ${s.local?"":`<label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>`}
+  openModal(s.id+" · "+(s.container||(s.sea?"Domestic sea freight":"Local delivery")),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}${s.sea?`<div><b>Shipping line</b>${s.sea.line}</div><div><b>Waybill or B/L</b>${s.sea.bl||"Not entered"}</div><div><b>Origin port</b>${s.sea.origin}</div>`:""}${s.veh1?`<div><b>Truck to port</b>${s.veh1.plate}, ${s.veh1.owner==="Own"?"own":s.veh1.owner}</div>`:""}${s.veh?`<div><b>Vehicle</b>${s.veh.plate}, ${s.veh.type}</div><div><b>Driver</b>${s.veh.driver}${s.veh.owner==="Own"?" (own)":", "+s.veh.owner}</div>`:""}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
+   <ul class="tl">${stg(s).map((st,k)=>s.local&&!s.sea&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
+   ${s.local&&!s.sea?"":`<label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>`}
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
-   <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${s.local?"":Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
+   <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${s.local&&!s.sea?"":Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
    <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4&&!s.local?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
 }
 function shipNext(id,force){
   const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;
-  if(s.stage===2&&!s.veh&&!s.local&&!force){trkForm("ship",id);return}
+  if(s.stage===2&&!s.veh&&(!s.local||s.sea)&&!force){trkForm("ship",id);return}
   s.stage++;
-  if(s.stage===4){s.lines.forEach(l=>{const it=I(l.sku);addStock(it,s.wh,l.qty,"L"+s.id.slice(4)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});toast(s.id+" received at "+WH[s.wh]+". Stock and batch expiry updated.")}else toast(s.id+" is now: "+STAGES[s.stage].k);
+  if(s.stage===4){s.lines.forEach(l=>{const it=I(l.sku);addStock(it,s.wh,l.qty,"L"+s.id.slice(4)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});toast(s.id+" received at "+WH[s.wh]+". Stock and batch expiry updated.")}else toast(s.id+" is now: "+stg(s)[s.stage].k);
   const lp=POS.find(x=>x.id&&x.shp===s.id);
-  if(lp&&s.local&&!lp.recv){lp.recv=addDays(0);const bal=balAmt(lp);if(bal>0){const b=mkBill({sup:lp.sup,po:lp.id,type:lp.dp?"Balance":"Goods",date:addDays(0),due:addDays(lp.terms),amt:bal});toast(s.id+" received at "+WH[s.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.")}}
+  if(lp&&s.local&&s.stage===4&&!lp.recv){lp.recv=addDays(0);const bal=balAmt(lp);if(bal>0){const b=mkBill({sup:lp.sup,po:lp.id,type:lp.dp?"Balance":"Goods",date:addDays(0),due:addDays(lp.terms),amt:bal});toast(s.id+" received at "+WH[s.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.")}}
   closeModal();renderPage();
 }
 function rSales(){
@@ -949,8 +957,9 @@ function rtvPanel(){
 /* ---------- vehicles ---------- */
 function trkForm(kind,id){
   const own=VEHICLES.filter(v=>!v.maint);
-  openModal(kind==="po"?"Dispatch "+id:"Trucking to warehouse · "+id,`<p class="note" style="margin:0 0 10px">Record which vehicle is bringing the goods to the warehouse.</p>
-  <label class="f">Vehicle<select id="vhSel" data-chg="vhsel">${own.map(v=>`<option value="${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} cases, ${vehStatus(v).toLowerCase()})</option>`).join("")}<option value="hired">Hired or supplier truck</option></select></label>
+  openModal(kind==="po"?"Dispatch "+id:"Trucking to warehouse · "+id,`${kind==="po"?`<label class="f">How is it shipped?<select id="trMode" data-chg="trmode"><option value="direct">By truck, direct to the warehouse</option><option value="sea">By truck and sea freight (inter-island)</option></select></label>
+  <div id="trSea" style="display:none"><div class="grid2"><label class="f">Origin port<input id="trOrigin" placeholder="e.g. port in the supplier's city"></label><label class="f">Port of arrival<select id="trDest"><option>Port A</option><option>Port B</option></select></label><label class="f">Shipping line or vessel<input id="trLine"></label><label class="f">Waybill or B/L no.<input id="trBl"></label><label class="f">Expected at the port<input id="trEta" type="date" value="${ymd(addDays(7))}"></label><label class="f">Freight and handling (PHP)<input id="trCost" type="number" min="0" value="0"></label></div></div>`:`<p class="note" style="margin:0 0 10px">Record which vehicle is bringing the goods to the warehouse.</p>`}
+  <label class="f"><span id="vhLbl">Vehicle</span><select id="vhSel" data-chg="vhsel">${own.map(v=>`<option value="${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} cases, ${vehStatus(v).toLowerCase()})</option>`).join("")}<option value="hired">Hired or supplier truck</option></select></label>
   <div id="vhHired" style="display:${own.length?"none":"block"}"><div class="grid2"><label class="f">Hauler or owner<input id="vhOwner" placeholder="Company name"></label><label class="f">Plate number<input id="vhPlate"></label><label class="f">Vehicle type<select id="vhType">${VTYPES.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Driver name<input id="vhDrv"></label></div></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trk-save" data-k="${kind}" data-id="${id}">${kind==="po"?"Dispatch":"Save and advance"}</button>`);
 }
@@ -966,11 +975,18 @@ function trkSave(kind,id){
     if(cases>v.cap){toast(cases+" cases is more than "+v.plate+" can carry ("+v.cap+"). Choose a larger vehicle or a hired truck.");return}
     veh={plate:v.plate,type:v.type,driver:v.driver,owner:"Own"};
   }
-  if(kind==="po")poDispatch(id,veh);else{sh.veh=veh;shipNext(id,true)}
+  if(kind==="po"){
+    if($("#trMode").value==="sea"){
+      const origin=$("#trOrigin").value.trim(), line=$("#trLine").value.trim(), eta=new Date($("#trEta").value+"T12:00:00");
+      if(!origin||!line||isNaN(eta)){toast("Enter the origin port, shipping line and expected date at the port.");return}
+      poDispatch(id,veh,{origin,line,bl:$("#trBl").value.trim(),dest:$("#trDest").value,eta,cost:Math.max(0,parseFloat($("#trCost").value)||0)});
+    }else poDispatch(id,veh);
+  }else{sh.veh=veh;shipNext(id,true)}
 }
 function rVehicles(){
   const st=VEHICLES.map(vehStatus), n=k=>st.filter(x=>x===k).length, trips=[];
   ORDERS.filter(o=>o.via!=="Courier"&&o.status==="Out for Delivery").forEach(o=>{const v=vehOf(o);trips.push({ref:o.id,dir:"Outbound",plate:v?v.plate:"",type:v?v.type:"",driver:o.driver,owner:"Own",route:WH[o.wh]+" to "+CUSTNAME(o.cust),status:"Out for delivery"})});
+  SHIPMENTS.filter(x=>x.veh1&&x.stage===0).forEach(x=>trips.push({ref:x.id,dir:"Inbound",plate:x.veh1.plate,type:x.veh1.type,driver:x.veh1.driver,owner:x.veh1.owner,route:originOf(x.supplier)+" to "+x.sea.origin+" port",status:"To port"}));
   SHIPMENTS.filter(x=>x.veh&&x.stage>=3).forEach(x=>trips.push({ref:x.id,dir:"Inbound",plate:x.veh.plate,type:x.veh.type,driver:x.veh.driver,owner:x.veh.owner,route:originOf(x.supplier)+" to "+WH[x.wh],status:x.stage===4?"Delivered":"In transit"}));
   return `<div class="kpis">${kpi("truck","Own vehicles",VEHICLES.length,"")}${kpi("check","Available",n("Available"),"")}${kpi("pin","On route",n("On route"),"")}${kpi("alert","In maintenance",n("Maintenance"),"")}</div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary btn-sm" data-act="veh-new">${ic("plus",14)}Add vehicle</button></div>
@@ -1021,11 +1037,13 @@ function poModal(id){
    ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
 }
-function poDispatch(id,veh){
+function poDispatch(id,veh,sea){
   const p=POS.find(x=>x.id===id), n=++shpSeq, d=addDays(0);
-  const sh={id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:"Direct delivery",eta:p.expected<d?d:p.expected,stage:3,wh:p.wh,costs:{freight:0,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,veh};
+  const sh=sea?{id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:sea.dest,eta:sea.eta,stage:0,wh:p.wh,costs:{freight:sea.cost,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,sea:{line:sea.line,bl:sea.bl,origin:sea.origin},veh1:veh}
+   :{id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:"Direct delivery",eta:p.expected<d?d:p.expected,stage:3,wh:p.wh,costs:{freight:0,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,veh};
   sh.pay={due:addDays(p.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;
-  closeModal();toast(p.id+" dispatched by "+p.sup+". "+sh.id+" is on its way to "+WH[p.wh]+".");renderPage();
+  if(sea&&sea.cost>0)mkBill({sup:"Shipping line and trucker",po:p.id,type:"Freight, duties and fees",date:d,due:dPlus(sh.eta,7),amt:sea.cost});
+  closeModal();toast(p.id+" dispatched by "+p.sup+". "+sh.id+(sea?" is on its way to the origin port, then by sea to "+WH[p.wh]+".":" is on its way to "+WH[p.wh]+"."));renderPage();
 }
 function poNext(id){
   const p=POS.find(x=>x.id===id);
@@ -1279,6 +1297,7 @@ $("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset()
 document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(!t)return;const c=t.dataset.chg;
   if(c==="alloc")shipModal(t.dataset.id,t.value);
   else if(c==="posup")poNew(t.value);
+  else if(c==="trmode"){const sea=t.value==="sea";$("#trSea").style.display=sea?"block":"none";$("#vhLbl").textContent=sea?"Truck to the origin port":"Vehicle"}
   else if(c==="vhsel"){$("#vhHired").style.display=t.value==="hired"?"block":"none"}
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
   else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
