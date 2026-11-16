@@ -777,14 +777,15 @@ function invModal(id){
   const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, s=invStatus(i);
   openModal(i.id+" · "+CUSTNAME(i.cust),`<div class="kv"><div><b>Sales order</b>${i.so}</div><div><b>Status</b><span class="badge ${invBadge[s]}">${s}</span></div><div><b>Delivered</b>${dfmt(i.issued)}</div><div><b>Due (Net ${i.terms})</b>${dfmt(i.due)}</div></div>
   <div class="sum" style="margin:0 0 14px"><div><span>Invoice amount</span><span>${money(i.amount)}</span></div><div><span>Paid so far</span><span>${money(i.paid)}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
-  ${i.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${i.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
-  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Cash</option><option>Check</option><option>Bank transfer</option></select></label></div><label class="f">Reference<input id="payRef" placeholder="Check no. or transfer ref."></label>`:""}`,
+  ${i.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${i.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td>${p.proof?`<a href="${p.proof.url}" target="_blank" rel="noopener" title="${esc(p.proof.name)}">${ic("upload",13)} ${esc(p.proof.name.length>18?p.proof.name.slice(0,15)+"...":p.proof.name)}</a>`:`<span class="note">No proof</span>`}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
+  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Cash</option><option>Check</option><option>Bank transfer</option></select></label></div><label class="f">Reference<input id="payRef" placeholder="Check no. or transfer ref."></label><label class="f">Proof of payment (optional)<input id="payProof" type="file" accept="image/*,.pdf"></label><p class="note" style="margin:0">Deposit slip, transfer receipt or check photo. Image or PDF.</p>`:""}`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0?`<button class="btn btn-ghost" data-act="remind" data-id="${i.cust}">Send reminder</button><button class="btn btn-accent" data-act="pay" data-id="${i.id}">Save payment</button>`:""}`);
 }
 function pay(id){
   const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, a=Math.min(bal,Math.max(1,parseFloat($("#payAmt").value)||0));
-  i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:$("#payMethod").value,ref:$("#payRef").value||"No reference"});
-  closeModal();toast(money(a)+" recorded on "+i.id+(i.amount-i.paid<=0?". Invoice fully paid.":". Remaining "+money(i.amount-i.paid)+"."));renderPage();
+  const fl=$("#payProof").files[0];if(fl&&fl.size>5*1024*1024){toast("Proof is over 5 MB. Choose a smaller file.");return}
+  i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:$("#payMethod").value,ref:$("#payRef").value||"No reference",proof:fl?{name:fl.name,url:URL.createObjectURL(fl)}:null});
+  closeModal();toast(money(a)+" recorded on "+i.id+(i.amount-i.paid<=0?". Invoice fully paid.":". Remaining "+money(i.amount-i.paid)+".")+(fl?" Proof attached.":""));renderPage();
 }
 function uomPanel(){
   const used=u=>ITEMS.filter(i=>i.uom===u).length, alt=u=>ITEMS.filter(i=>i.alts.some(a=>a.u===u)).length;
