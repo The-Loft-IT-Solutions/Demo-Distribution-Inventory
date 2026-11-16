@@ -536,6 +536,12 @@ const TERMOPTS=[0,15,30,45,60], DPOPTS=[0,30,50,100];
 const dpLabel=d=>d===0?"None":d===100?"100% paid in advance":d+"% advance";
 const dpAmt=p=>Math.round(poTotal(p)*(p.dp||0)/100), balAmt=p=>poTotal(p)-dpAmt(p);
 const termShort=p=>p.dp===100?"Advance":(p.dp?p.dp+"% + ":"")+(p.terms===0?"COD":"Net "+p.terms);
+const APPS=[
+ {id:"APP-103",date:addDays(-1),name:"Applicant 3",company:"Applicant Store A",email:"owner@applicant-a.example",mobile:"+63 900 000 0003",type:"Retailer",terms:30,status:"Pending"},
+ {id:"APP-102",date:addDays(-2),name:"Applicant 2",company:"Applicant Trading B",email:"owner@applicant-b.example",mobile:"+63 900 000 0002",type:"Sub-distributor",terms:60,status:"Pending"},
+ {id:"APP-101",date:addDays(-6),name:"Applicant 1",company:"Applicant Mart C",email:"owner@applicant-c.example",mobile:"+63 900 000 0001",type:"Retailer",terms:45,status:"Rejected",note:"Business registration documents were incomplete."}
+]; let appSeq=103;
+const TYPE_LIMIT={Retailer:100000,"Sub-distributor":250000,Institution:200000};
 const VEHICLES=[
  {id:"VH-1",plate:"NAA 1234",type:"Closed van",cap:300,driver:"Driver A",maint:false},
  {id:"VH-2",plate:"NBB 5678",type:"6-wheeler truck",cap:800,driver:"Driver B",maint:false},
@@ -632,11 +638,11 @@ function openCart(){
 
 /* ---------- CONSOLE ---------- */
 const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
-let page="dash"; const FIL={purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
+let page="dash"; const FIL={custTab:"Customers",appF:"Pending",purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports,returns:rReturns};
+  const R={dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:rCustomers,reports:rReports,returns:rReturns};
   $("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -805,7 +811,7 @@ function rCustTable(){
   const rows=custRows(),p=FIL.custPage||0;
   return `<h2>Customer balances and credit limits</h2><div class="tw"><table><thead><tr><th>Customer</th><th>Type</th><th>Terms</th><th class="num">Credit limit</th><th class="num">Exposure</th><th class="num">Available</th><th>Usage</th><th></th></tr></thead><tbody>${rows.slice(p*PG,(p+1)*PG).map(([k,c])=>{const ex=exposure(+k),pc=ex/c.limit,cls=pc>=1?"bad":pc>=.8?"warn":"";return `<tr><td><b>${c.name}</b></td><td>${c.type}</td><td>Net ${c.terms}</td><td class="num">${money(c.limit)}</td><td class="num">${money(ex)}</td><td class="num" style="color:var(${pc>=1?"--bad":"--text"})">${money(c.limit-ex)}</td><td><div class="usage ${cls}" title="${Math.round(pc*100)}% used"><i style="width:${Math.min(100,Math.round(pc*100))}%"></i></div></td><td><button class="btn btn-ghost btn-sm" data-act="stmt" data-id="${k}">Statement</button> <button class="btn btn-ghost btn-sm" data-act="remind" data-id="${k}">Remind</button></td></tr>`}).join("")||`<tr><td colspan="8">No customers match.</td></tr>`}</tbody></table></div>${pager("cust",rows.length)}<p class="note" style="margin-top:8px">Exposure = unpaid invoices + orders not yet delivered. A new order that pushes a customer over the limit is placed on credit hold for approval.</p>`;
 }
-const custBlock=()=>`${filt("custType",["All","Retailer","Sub-distributor","Institution"])}<div class="toolbar"><input type="search" data-q="cust" placeholder="Search customers" value="${esc(FIL.custQ||"")}" aria-label="Search customers"><button class="btn btn-ghost btn-sm" data-act="import" data-id="customers">${ic("upload",14)}Import from Excel</button></div><div class="panel" id="custTbl">${rCustTable()}</div>`;
+const custBlock=()=>`${filt("custType",["All","Retailer","Sub-distributor","Institution"])}<div class="toolbar"><input type="search" data-q="cust" placeholder="Search customers" value="${esc(FIL.custQ||"")}" aria-label="Search customers"><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-act="cust-new">${ic("plus",14)}Add customer</button><button class="btn btn-ghost btn-sm" data-act="import" data-id="customers">${ic("upload",14)}Import from Excel</button></span></div><div class="panel" id="custTbl">${rCustTable()}</div>`;
 
 /* ---------- inventory: batches, expiry, damage ---------- */
 function invRows(){const f=FIL.inventory,q=(FIL.invQ||"").toLowerCase();return ITEMS.filter(i=>(f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0)||(f==="Expiring Soon"&&(expQty(i,30)>0||expiredQty(i)>0))||(f==="Food"&&i.food)||(f==="Non-Food"&&!i.food))&&(!q||i.name.toLowerCase().includes(q)||i.sku.toLowerCase().includes(q)||i.cat.toLowerCase().includes(q)))}
@@ -952,6 +958,48 @@ function rtvDone(id){
 }
 function rtvPanel(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Returns to vendor (RTV)</h2><button class="btn btn-primary btn-sm" data-act="rtv-new" data-id="">${ic("plus",14)}New RTV</button></div><div class="tw"><table><thead><tr><th>RTV</th><th>Date</th><th>Vendor</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Vendor to give</th><th>Status</th><th class="num">Value</th><th></th></tr></thead><tbody>${RTVS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.supplier}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td>${r.res==="Credit"?"Credit note":"Replacement"}</td><td><span class="badge ${r.status==="Sent to vendor"?"b-warn":"b-ok"}">${r.status}</span></td><td class="num">${money(r.value)}</td><td>${r.status==="Sent to vendor"?`<button class="btn btn-ghost btn-sm" data-act="rtv-done" data-id="${r.id}">${r.res==="Credit"?"Record credit":"Receive replacement"}</button>`:""}</td></tr>`).join("")||`<tr><td colspan="10">No vendor returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Damaged or expired stock goes back to the supplier. A credit note lowers pending payables; replacement cases return to stock when received.</p></div>`;
+}
+
+/* ---------- customer applications ---------- */
+function custNew(){
+  openModal("Add customer",`<div class="grid2"><label class="f">Company name<input id="ncName"></label><label class="f">Contact person<input id="ncContact"></label><label class="f">Email<input id="ncEmail" type="email" placeholder="name@company.example"></label><label class="f">Mobile<input id="ncMobile" placeholder="+63 900 000 0000"></label>
+  <label class="f">Business type<select id="ncType" data-chg="cntype">${Object.keys(TYPE_LIMIT).map(t=>`<option>${t}</option>`).join("")}</select></label><label class="f">Payment terms<select id="ncTerms">${[15,30,45,60].map(t=>`<option value="${t}" ${t===30?"selected":""}>Net ${t} days</option>`).join("")}</select></label>
+  <label class="f">Credit limit (PHP)<input id="ncLimit" type="number" min="0" value="${TYPE_LIMIT.Retailer}"></label></div><p class="note">Use this for customers you onboard yourselves, such as an existing account. Customers who apply on the portal are approved under Applications.</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="cust-create">Save customer</button>`);
+}
+function custCreate(){
+  const name=$("#ncName").value.trim();
+  if(!name){toast("Enter the company name.");return}
+  if(Object.values(CUSTS).some(c=>c.name.toLowerCase()===name.toLowerCase())){toast(name+" is already a customer.");return}
+  const k=Math.max(...Object.keys(CUSTS).map(Number))+1;
+  CUSTS[k]={name,type:$("#ncType").value,terms:+$("#ncTerms").value,limit:Math.max(0,parseInt($("#ncLimit").value)||0),contact:$("#ncContact").value.trim(),email:$("#ncEmail").value.trim(),mobile:$("#ncMobile").value.trim()};
+  FIL.custQ=name;FIL.custType="All";FIL.custTab="Customers";closeModal();toast(name+" added with a "+money(CUSTS[k].limit)+" credit limit and Net "+CUSTS[k].terms+" days.");renderPage();
+}
+function rCustomers(){
+  const pend=APPS.filter(a=>a.status==="Pending").length;
+  return filt("custTab",["Customers","Applications"])+(FIL.custTab==="Applications"?appTab():(pend?`<div class="panel" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span><b>${pend} trade account ${pend===1?"application is":"applications are"} waiting for approval.</b></span><button class="btn btn-accent btn-sm" data-act="fil" data-k="custTab" data-id="Applications">Review applications</button></div>`:"")+custBlock());
+}
+function appTab(){
+  const rows=APPS.filter(a=>FIL.appF==="All"||a.status===FIL.appF).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), bd={Pending:"b-warn",Approved:"b-ok",Rejected:"b-bad"};
+  return `${filt("appF",["Pending","Approved","Rejected","All"])}<div class="panel"><p class="note" style="margin:0 0 10px">Applications come from the trade account form on the customer portal. Approving one creates the customer with a credit limit and payment terms.</p><div class="tw"><table><thead><tr><th>Application</th><th>Date</th><th>Company</th><th>Contact</th><th>Business type</th><th>Terms asked</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(a=>`<tr><td><b>${a.id}</b></td><td>${dfmt(a.date)}</td><td>${esc(a.company)}</td><td>${esc(a.name)}</td><td>${a.type}</td><td>Net ${a.terms}</td><td><span class="badge ${bd[a.status]}">${a.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="app" data-id="${a.id}">${a.status==="Pending"?"Review":"View"}</button></td></tr>`).join("")||`<tr><td colspan="8">No applications in this status.</td></tr>`}</tbody></table></div></div>`;
+}
+function appModal(id){
+  const a=APPS.find(x=>x.id===id), pend=a.status==="Pending";
+  openModal(a.id+" · "+a.company,`<div class="kv"><div><b>Company</b>${esc(a.company)}</div><div><b>Contact</b>${esc(a.name)}</div><div><b>Email</b>${esc(a.email)}</div><div><b>Mobile</b>${esc(a.mobile||"Not provided")}</div><div><b>Business type</b>${a.type}</div><div><b>Terms asked</b>Net ${a.terms} days</div><div><b>Received</b>${dfmt(a.date)}</div><div><b>Status</b>${a.status}</div></div>
+  ${pend?`<h4 style="margin-bottom:6px">Review checklist</h4><label style="display:flex;gap:8px;margin-bottom:6px"><input type="checkbox" class="apChk"> Business registration reviewed</label><label style="display:flex;gap:8px;margin-bottom:6px"><input type="checkbox" class="apChk"> Owner's ID reviewed</label><label style="display:flex;gap:8px;margin-bottom:14px"><input type="checkbox" class="apChk"> Credit reference checked</label>
+  <div class="grid2"><label class="f">Credit limit (PHP)<input id="apLimit" type="number" min="0" value="${TYPE_LIMIT[a.type]}"></label><label class="f">Approved terms<select id="apTerms">${[15,30,45,60].map(t=>`<option value="${t}" ${t===a.terms?"selected":""}>Net ${t} days</option>`).join("")}</select></label></div><label class="f">Note (shown if rejected)<input id="apNote" placeholder="Reason, if rejecting"></label>`
+  :a.status==="Approved"?`<p class="note">Approved as ${esc(CUSTNAME(a.custId))} with a credit limit of ${money(CUSTS[a.custId].limit)} and Net ${CUSTS[a.custId].terms} days.</p>`:`<p class="note">${esc(a.note||"")}</p>`}`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${pend?`<button class="btn btn-ghost" data-act="app-no" data-id="${a.id}">Reject</button><button class="btn btn-accent" data-act="app-yes" data-id="${a.id}">Approve and create customer</button>`:""}`);
+}
+function appDecide(id,ok){
+  const a=APPS.find(x=>x.id===id);
+  if(ok){
+    if($$(".apChk").some(c=>!c.checked)){toast("Tick all three review items before approving.");return}
+    const k=Math.max(...Object.keys(CUSTS).map(Number))+1;
+    CUSTS[k]={name:a.company,type:a.type,terms:+$("#apTerms").value,limit:Math.max(0,parseInt($("#apLimit").value)||0)};
+    a.status="Approved";a.custId=k;toast(a.company+" approved. Customer account created with a "+money(CUSTS[k].limit)+" limit and Net "+CUSTS[k].terms+" days.");
+  }else{a.status="Rejected";a.note=$("#apNote").value.trim()||"Application not approved.";toast(a.id+" rejected.")}
+  closeModal();renderPage();
 }
 
 /* ---------- vehicles ---------- */
@@ -1289,15 +1337,16 @@ document.addEventListener("click",e=>{
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
-  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
+  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
-$("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset();toast("Application received. We will contact you within one business day.")});
+$("#acctForm").addEventListener("submit",e=>{e.preventDefault();const f=e.target.elements, a={id:"APP-"+(++appSeq),date:addDays(0),name:f[0].value.trim(),company:f[1].value.trim(),email:f[2].value.trim(),mobile:f[3].value.trim(),type:f[4].value,terms:parseInt(f[5].value.replace(/\D/g,""))||30,status:"Pending"};APPS.push(a);e.target.reset();toast("Application "+a.id+" received. We will contact you within one business day.")});
 document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(!t)return;const c=t.dataset.chg;
   if(c==="alloc")shipModal(t.dataset.id,t.value);
   else if(c==="posup")poNew(t.value);
   else if(c==="trmode"){const sea=t.value==="sea";$("#trSea").style.display=sea?"block":"none";$("#vhLbl").textContent=sea?"Truck to the origin port":"Vehicle"}
+  else if(c==="cntype"){$("#ncLimit").value=TYPE_LIMIT[t.value]}
   else if(c==="vhsel"){$("#vhHired").style.display=t.value==="hired"?"block":"none"}
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
   else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
