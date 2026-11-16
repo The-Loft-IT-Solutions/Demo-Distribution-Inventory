@@ -325,6 +325,7 @@ td.num,th.num{text-align:right}
     <button class="nl" data-act="page" data-id="inbound"><span data-ic="anchor" data-s="18"></span>Inbound Shipments</button>
     <button class="nl" data-act="page" data-id="inventory"><span data-ic="layers" data-s="18"></span>Inventory</button>
     <button class="nl" data-act="page" data-id="sales"><span data-ic="truck" data-s="18"></span>Sales &amp; Deliveries</button>
+    <button class="nl" data-act="page" data-id="returns"><span data-ic="back" data-s="18"></span>Returns &amp; Damage</button>
     <button class="nl" data-act="page" data-id="collections"><span data-ic="card" data-s="18"></span>Collections</button>
     <button class="nl" data-act="page" data-id="customers"><span data-ic="users" data-s="18"></span>Customers</button>
     <div class="grp">Reports</div>
@@ -470,6 +471,7 @@ const PAYD={"SHP-2411":[30,0],"SHP-2410":[10,0],"SHP-2409":[-3,0],"SHP-2408":[20
 SHIPMENTS.forEach(s=>s.pay={due:addDays(PAYD[s.id][0]),paid:!!PAYD[s.id][1]});
 const DAMAGES=[{id:"DMG-101",date:addDays(-18),sku:"SKU-1007",wh:"B",lot:"L2406-1007",qty:12,reason:"Water damage"},{id:"DMG-102",date:addDays(-9),sku:"SKU-1003",wh:"A",lot:"L2406-1003",qty:6,reason:"Broken in transit"},{id:"DMG-103",date:addDays(-3),sku:"SKU-1008",wh:"A",lot:"L2406-1008",qty:5,reason:"Handling"}];
 let dmgSeq=103;
+const RETURNS=[]; let retSeq=200, cnSeq=400;
 let trfSeq=301;
 const ORDERS=[]; const INVOICES=[];
 let soSeq=1016, invSeq=5010;
@@ -511,6 +513,8 @@ const stockState=i=>{const t=totalStock(i);return t===0?["Out","b-bad"]:t<=i.reo
 const extraOf=s=>Object.values(s.costs).reduce((a,b)=>a+b,0);
 const shipCost=s=>s.lines.reduce((n,l)=>n+l.qty*I(l.sku).cost,0)+extraOf(s);
 const CUSTNAME=id=>CUSTS[id].name;
+makeReturn(ORDERS.find(x=>x.id==="SO-1003"),"SKU-1004",6,"Damaged on delivery","Write off as damage",addDays(-9));
+makeReturn(ORDERS.find(x=>x.id==="SO-1006"),"SKU-1008",10,"Wrong item","Back to stock",addDays(-4));
 
 /* ---------- view control ---------- */
 let current=null;
@@ -549,12 +553,12 @@ function openCart(){
 }
 
 /* ---------- CONSOLE ---------- */
-const PAGES={dash:"Dashboard",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports"};
+const PAGES={dash:"Dashboard",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
 let page="dash"; const FIL={inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={dash:rDash,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports};
+  const R={dash:rDash,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports,returns:rReturns};
   $("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -621,7 +625,7 @@ function soModal(id){
   openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div><div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
   <div class="sum"><div class="tot"><span>Order total</span><span>${money(orderTotal(o))}</span></div></div>`,
-  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${nextLabel(o,nx)}</button>`:""}`);
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${o.status==="Delivered"?`<button class="btn btn-ghost" data-act="ret-new" data-id="${o.id}">Process return</button>`:""}${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${nextLabel(o,nx)}</button>`:""}`);
 }
 function soNext(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status];if(!nx)return;
@@ -725,6 +729,7 @@ function itemModal(sku){
   SHIPMENTS.filter(s=>s.stage===4).forEach(s=>s.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:s.eta,t:"Inbound "+s.id,w:s.wh,q:l.qty})));
   ORDERS.filter(o=>o.status==="Out for Delivery"||o.status==="Delivered").forEach(o=>o.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:o.delivered||o.date,t:"Outbound "+o.id+" to "+CUSTNAME(o.cust),w:o.wh,q:-l.qty})));
   TRANSFERS.filter(t=>t.sku===sku).forEach(t=>{mv.push({d:t.date,t:"Transfer "+t.id+" out",w:t.from,q:-t.qty});if(t.status==="Received")mv.push({d:t.date,t:"Transfer "+t.id+" in",w:t.to,q:t.qty})});
+  RETURNS.filter(x=>x.sku===sku&&x.disp==="Back to stock").forEach(x=>mv.push({d:x.date,t:"Return "+x.id+" restocked",w:ORDERS.find(o=>o.id===x.so).wh,q:x.qty}));
   DAMAGES.filter(d=>d.sku===sku).forEach(d=>mv.push({d:d.date,t:"Damage "+d.id+" ("+d.reason+")",w:d.wh,q:-d.qty}));
   mv.sort((a,b)=>b.d-a.d);
   const bt=i.batches.filter(b=>b.q.A+b.q.B>0).sort((a,b)=>expMs(a)-expMs(b));
@@ -776,13 +781,44 @@ function soCreate(){
   toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
 }
 
+/* ---------- customer returns and credit notes ---------- */
+function makeReturn(o,sku,qty,reason,disp,date){
+  const l=o.lines.find(x=>x.sku===sku), it=I(sku), val=qty*it.price, inv=invOf(o.id), id="RET-"+(++retSeq), cn="CN-"+(++cnSeq);
+  if(inv){inv.amount=Math.max(inv.paid,inv.amount-val);inv.credits=(inv.credits||0)+val}
+  if(disp==="Back to stock"){const ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];addStock(it,o.wh,qty,"RET-"+id.slice(4),it.food?(ok?ok.exp:addDays(60)):null)}
+  else DAMAGES.push({id:"DMG-"+(++dmgSeq),date:date||addDays(0),sku,wh:o.wh,lot:"Return "+id,qty,reason:"Customer return: "+reason});
+  const r={id,cn,so:o.id,cust:o.cust,date:date||addDays(0),sku,qty,reason,disp,value:val};RETURNS.push(r);return r;
+}
+const returnedQty=(o,sku)=>RETURNS.filter(r=>r.so===o.id&&r.sku===sku).reduce((n,r)=>n+r.qty,0);
+function retNew(id){
+  const o=ORDERS.find(x=>x.id===id);
+  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. A return creates a credit note against the invoice and either puts the cases back in stock or writes them off.</p>
+  <label class="f">Item<select id="rtItem">${o.lines.map(l=>`<option value="${l.sku}">${I(l.sku).name} (delivered ${l.qty}, returned ${returnedQty(o,l.sku)})</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Cases returned<input id="rtQty" type="number" min="1" value="1"></label><label class="f">Reason<select id="rtWhy"><option>Damaged on delivery</option><option>Expired or near expiry</option><option>Wrong item</option><option>Over-delivered</option><option>Customer changed order</option></select></label></div>
+  <label class="f">What happens to the cases<select id="rtDisp"><option>Back to stock</option><option>Write off as damage</option></select></label>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ret-create" data-id="${o.id}">Create credit note</button>`);
+}
+function retCreate(id){
+  const o=ORDERS.find(x=>x.id===id), sku=$("#rtItem").value, l=o.lines.find(x=>x.sku===sku), q=Math.max(1,parseInt($("#rtQty").value)||1), left=l.qty-returnedQty(o,sku);
+  if(q>left){toast("Only "+left+" cases of "+I(sku).name+" can still be returned on "+o.id+".");return}
+  const r=makeReturn(o,sku,q,$("#rtWhy").value,$("#rtDisp").value);closeModal();
+  toast(r.id+" saved. Credit note "+r.cn+" for "+money(r.value)+" applied to the invoice.");renderPage();
+}
+function retPanel(){
+  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Result</th><th>Credit note</th><th class="num">Credit</th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${r.cn}</td><td class="num">${money(r.value)}</td></tr>`).join("")||`<tr><td colspan="10">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return.</p></div>`;
+}
+function rReturns(){
+  const n=30,R30=RETURNS.filter(r=>inP(r.date,n));
+  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" cases")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" cases","Damage and returns")}</div>${retPanel()}${dmgPanel()}`;
+}
+
 /* ---------- reports ---------- */
 const PD={"7 days":7,"30 days":30,"90 days":90};
 const inP=(d,n)=>{if(!d)return false;const x=dayDiff(TODAY,d);return x>=0&&x<=n};
 const sumBy=(a,f)=>a.reduce((n,x)=>n+f(x),0);
 const caseCt=o=>sumBy(o.lines,l=>l.qty);
 const tbl=(head,rows,total)=>`<div class="tw"><table id="repTable"><thead><tr>${head.map(h=>`<th${h[1]?' class="num"':""}>${h[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${head.length}">No records in this period.</td></tr>`}${total?`<tr class="tr-total">${total.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
-const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Damage","Payables"];
+const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Returns","Damage","Payables"];
 function rReports(){
   const n=PD[FIL.repP], r=FIL.rep; let body="",title="",kp="";
   if(r==="Inbound stock"){
@@ -798,6 +834,9 @@ function rReports(){
   }else if(r==="Sales invoices"){
     title="Total sales invoices";const V=INVOICES.filter(i=>inP(i.issued,n)).sort((a,b)=>b.issued-a.issued);
     body=tbl([["Invoice"],["Customer"],["Issued"],["Due"],["Amount",1],["Paid",1],["Balance",1],["Status"]],V.slice(0,20).map(i=>[i.id,CUSTNAME(i.cust),dfmt(i.issued),dfmt(i.due),money(i.amount),money(i.paid),money(i.amount-i.paid),`<span class="badge ${invBadge[invStatus(i)]}">${invStatus(i)}</span>`]),["Total ("+V.length+" invoices)","","","",money(sumBy(V,i=>i.amount)),money(sumBy(V,i=>i.paid)),money(sumBy(V,i=>i.amount-i.paid)),""])+(V.length>20?`<p class="note" style="margin-top:8px">Showing the latest 20 invoices. Export to CSV for the full list.</p>`:"");
+  }else if(r==="Returns"){
+    title="Customer returns";const T=RETURNS.filter(x=>inP(x.date,n));
+    body=tbl([["Return"],["Date"],["Customer"],["Item"],["Reason"],["Result"],["Cases",1],["Credit",1]],T.map(x=>[x.id,dfmt(x.date),CUSTNAME(x.cust),I(x.sku).name,x.reason,x.disp,x.qty,money(x.value)]),["Total","","","","","",sumBy(T,x=>x.qty),money(sumBy(T,x=>x.value))]);
   }else if(r==="Damage"){
     title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
     body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Cases",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
@@ -901,6 +940,7 @@ document.addEventListener("click",e=>{
   else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
   else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
   else if(a==="csv")csvExport();
+  else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
   else if(a==="sup-paid"){SHIPMENTS.find(x=>x.id===id).pay.paid=true;toast(id+" marked as paid.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
