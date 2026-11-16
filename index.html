@@ -78,6 +78,7 @@ svg{flex-shrink:0}
 
 /* Forms */
 label.f{display:block;font-size:13px;font-weight:600;margin-bottom:12px}
+.porow input,.porow select{display:block;width:100%;min-width:0;min-height:44px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-weight:400}
 label.f input,label.f select{display:block;width:100%;margin-top:4px;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff;font-weight:400}
 .grid2{display:grid;gap:0 14px;grid-template-columns:1fr}
 @media(min-width:560px){.grid2{grid-template-columns:1fr 1fr}}
@@ -1265,13 +1266,13 @@ function poNew(supName){
   let sug=ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
   const sugd=sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
   const row=k=>{const it=sug[k],q=it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):"";
-    return `<div style="display:grid;grid-template-columns:1fr 70px 84px 96px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
+    return `<div class="porow" style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
   openModal("New purchase order",`<div class="grid2"><label class="f">Supplier<select id="poSup" data-chg="posup">${["International","Local"].map(g=>`<optgroup label="${g}">${SUPPS.filter(x=>x.kind===g).map(x=>`<option ${x.name===sn?"selected":""}>${x.name} (${x.country})</option>`.replace("<option ",`<option value="${x.name}" `)).join("")}</optgroup>`).join("")}</select></label>
    <label class="f">Deliver to<select id="poWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label>
    <label class="f">Down payment<select id="poDp">${DPOPTS.map(t=>`<option value="${t}">${dpLabel(t)}</option>`).join("")}</select></label>
    <label class="f">Payment terms${""}<select id="poTerms">${TERMOPTS.map(t=>`<option value="${t}" ${t===sp.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select></label></div>
    <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual terms ${termLabel(sp.terms)}, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
-   <div style="display:grid;grid-template-columns:1fr 70px 84px 96px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost per stock unit</span></div>${row(0)}${row(1)}${row(2)}`,
+   <div style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost / stock unit</span></div>${row(0)}${row(1)}${row(2)}`,
    `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">Save as draft</button>`);
 }
 function poCreate(){
