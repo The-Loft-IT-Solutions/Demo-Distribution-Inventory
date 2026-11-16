@@ -848,11 +848,13 @@ function catDel(old){
   if(ITEMS.some(i=>i.cat===old)){toast("Move or remove the items in "+old+" first.");return}
   delete CATS[old];delete SHELF[old];SUPPS.forEach(x=>{x.cats=x.cats.filter(c=>c!==old)});closeModal();toast(old+" deleted.");catRefresh();
 }
+const SET={stockRule:"block"};
 function rSettings(){
   return `<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
   <label class="f">Default credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
   <label class="f">Warehouse A name<input value="Warehouse A"></label><label class="f">Warehouse B name<input value="Warehouse B"></label></div>
   <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
+  <label class="f" style="margin-top:10px">Sales orders above available stock<select data-chg="stockrule"><option value="block" ${SET.stockRule==="block"?"selected":""}>Block the order</option><option value="allow" ${SET.stockRule==="allow"?"selected":""}>Allow it (picking waits for stock)</option></select></label><p class="note" style="margin:4px 0 12px">Applies when creating a sales order. Available stock means in-date stock in the warehouse the order ships from.</p>
   <button class="btn btn-primary" data-act="save">Save settings</button></div>${catPanel()}${uomPanel()}`;
 }
 function rUsers(){
@@ -987,10 +989,13 @@ function nsStockUpd(){const e=$("#nsStock");if(!e)return;const i=I($("#nsItem").
 function soCreate(){
   const q=qtyOf("nsItem","nsQty","nsU",0.0001), bf=qtyOf("nsItem","nsBuf","nsU",0), sku=$("#nsItem").value, cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel);
   if(veh&&q+bf>veh.cap){toast(NUM.format(Math.round((q+bf)*100)/100)+" units is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
+  const av=sellable(I(sku),$("#nsWh").value), need=q+bf, wn=WH[$("#nsWh").value], oth=$("#nsWh").value==="A"?"B":"A";
+  if(need>av+1e-9&&SET.stockRule==="block"){toast("Only "+fq(sku,av)+" available at "+wn+" and the order needs "+fq(sku,need)+"."+(sellable(I(sku),oth)>=need?" "+WH[oth]+" has enough.":""));return}
+  const short=need>av+1e-9;
   const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
   const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:bf}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
   ORDERS.push(o);closeModal();
-  toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
+  toast((over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".")+(short?" Stock is short at "+wn+", so picking will wait.":""));renderPage();
 }
 
 /* ---------- customer returns and credit notes ---------- */
@@ -1463,6 +1468,7 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
   else if(c==="uitem"){const e=$("#"+t.dataset.id);if(e)e.innerHTML=unitOpts(I(t.value));nsStockUpd()}
   else if(c==="nsstock")nsStockUpd()
+  else if(c==="stockrule"){SET.stockRule=t.value;toast(t.value==="block"?"Orders above available stock are now blocked.":"Orders above available stock are now allowed.")}
   else if(c==="poitem"){const it=I(t.value);if(it)$("#poU"+t.dataset.id).innerHTML=unitOpts(it);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
   else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
   else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
