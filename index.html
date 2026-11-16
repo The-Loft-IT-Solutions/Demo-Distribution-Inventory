@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Distribution &amp; Inventory Management System</title>
+<link rel="icon" href="favicon.ico" sizes="any">
 <!--
   Demo: Distribution & Inventory Management System (Port -> Warehouse -> Sales -> Delivery -> Collections)
   Palette: ink #1C1F2A (primary) / lime #A3E635 (accent) / bone #F3F4EE (background)
@@ -195,6 +196,12 @@ td.num,th.num{text-align:right}
 .photo{display:flex;align-items:center;gap:10px;min-height:44px;width:100%;border:1px dashed var(--muted);border-radius:8px;padding:0 12px;margin-bottom:12px;background:#fff;font-weight:600;font-size:14px}
 .photo.done{border-style:solid;border-color:var(--ok);color:var(--ok);background:var(--okbg)}
 .note{font-size:12px;color:var(--muted)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:14px}
+.toolbar .filters{margin:0}
+.toolbar input[type=search]{flex:1 1 220px;max-width:360px;min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.tr-total td{font-weight:700;background:var(--mutebg)}
 .cartbtn{white-space:nowrap}
 @media(max-width:420px){.brand{font-size:15px;min-width:0}.pnav .row{gap:6px;padding:8px 10px}.cartbtn{padding:0 10px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
@@ -260,24 +267,25 @@ td.num,th.num{text-align:right}
   </header>
   <section class="hero"><div class="in">
     <div>
-      <h1 class="display">Stock your shelves. <em>Pay on 30, 45 or 60 days.</em></h1>
+      <h1 class="display">Stock your shelves. <em>Pay on 15 to 60 days.</em></h1>
       <p>Order from the full catalog, see what is on the shelf in our warehouses right now, and get it delivered to your store with a signed receipt.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-accent" data-act="scroll" data-href="#p-catalog">Place an order</button>
       <button class="btn btn-ghost" style="background:transparent;color:#fff;border-color:#4A5068" data-act="scroll" data-href="#p-contact">Open a trade account</button></div>
     </div>
-    <div class="stats"><div><b>2</b><span>Warehouses</span></div><div><b>10</b><span>Product lines</span></div><div><b>30-60</b><span>Day credit terms</span></div></div>
+    <div class="stats"><div><b>2</b><span>Warehouses</span></div><div><b id="pLines">100</b><span>Product lines</span></div><div><b>15-60</b><span>Day credit terms</span></div></div>
   </div></section>
   <section class="sec"><div class="in">
     <div class="feat">
       <div class="c"><div class="ic" data-ic="layers" data-s="20"></div><h3>Live availability</h3><p>Every product shows whether it is in stock, running low or arriving soon.</p></div>
       <div class="c"><div class="ic" data-ic="truck" data-s="20"></div><h3>Tracked delivery</h3><p>See when your order is packed, out for delivery and received at your store.</p></div>
-      <div class="c"><div class="ic" data-ic="card" data-s="20"></div><h3>Credit terms</h3><p>Pay 30, 45 or 60 days after delivery, depending on your trade account.</p></div>
+      <div class="c"><div class="ic" data-ic="card" data-s="20"></div><h3>Credit terms</h3><p>Pay 15 to 60 days after delivery, depending on your trade account.</p></div>
       <div class="c"><div class="ic" data-ic="file" data-s="20"></div><h3>Clear statements</h3><p>Invoices, due dates and balances in one place, with no surprises.</p></div>
     </div>
   </div></section>
   <section class="sec" id="p-catalog" style="padding-top:0"><div class="in">
     <h2 class="display">Catalog</h2><p class="lead">Prices are per case. Availability updates as stock arrives from port and leaves for delivery.</p>
-    <div class="prods" id="prods"></div>
+    <div class="toolbar"><input type="search" data-q="cat" placeholder="Search products" aria-label="Search products"><select id="pcat" data-chg="catsel" aria-label="Category" style="min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff"></select></div>
+    <div class="prods" id="prods"></div><div class="pager" id="pmore"></div>
   </div></section>
   <section class="sec" id="p-how" style="background:var(--mutebg)"><div class="in">
     <h2 class="display">How ordering works</h2><p class="lead">From request to receipt in four steps.</p>
@@ -285,7 +293,7 @@ td.num,th.num{text-align:right}
       <div class="c"><h3>Build your order list</h3><p>Pick products and quantities from the catalog.</p></div>
       <div class="c"><h3>We confirm and pack</h3><p>Our team confirms stock and packs from the nearest warehouse.</p></div>
       <div class="c"><h3>Delivered to your store</h3><p>Our driver delivers and records who received the goods.</p></div>
-      <div class="c"><h3>Pay on your terms</h3><p>Your invoice is due 30, 45 or 60 days from the delivery date.</p></div>
+      <div class="c"><h3>Pay on your terms</h3><p>Your invoice is due 15 to 60 days from the delivery date.</p></div>
     </div>
   </div></section>
   <section class="sec" id="p-terms"><div class="in">
@@ -301,7 +309,7 @@ td.num,th.num{text-align:right}
     <form id="acctForm" class="panel" style="padding:20px">
       <div class="grid2"><label class="f">Your Name<input required placeholder="Your Name"></label><label class="f">Your Company<input required placeholder="Your Company"></label>
       <label class="f">Email<input type="email" required placeholder="you@example.com"></label><label class="f">Mobile<input placeholder="+63 900 000 0001"></label></div>
-      <label class="f">Preferred credit terms<select><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>
+      <label class="f">Business type<select><option>Retailer</option><option>Sub-distributor</option><option>Institution</option></select></label><label class="f">Preferred credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>
       <button class="btn btn-primary" type="submit">Submit application</button>
     </form>
   </div></section>
@@ -318,9 +326,12 @@ td.num,th.num{text-align:right}
     <button class="nl" data-act="page" data-id="inventory"><span data-ic="layers" data-s="18"></span>Inventory</button>
     <button class="nl" data-act="page" data-id="sales"><span data-ic="truck" data-s="18"></span>Sales &amp; Deliveries</button>
     <button class="nl" data-act="page" data-id="collections"><span data-ic="card" data-s="18"></span>Collections</button>
+    <button class="nl" data-act="page" data-id="customers"><span data-ic="users" data-s="18"></span>Customers</button>
+    <div class="grp">Reports</div>
+    <button class="nl" data-act="page" data-id="reports"><span data-ic="chart" data-s="18"></span>Reports</button>
     <div class="grp">Settings</div>
     <button class="nl" data-act="page" data-id="settings"><span data-ic="sliders" data-s="18"></span>Settings</button>
-    <button class="nl" data-act="page" data-id="users"><span data-ic="users" data-s="18"></span>Users</button>
+    <button class="nl" data-act="page" data-id="users"><span data-ic="user" data-s="18"></span>Users</button>
   </aside>
   <div class="main">
     <div class="top">
@@ -384,7 +395,11 @@ const ICONS={
  cart:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
  pin:'<path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
- plus:'<path d="M12 5v14M5 12h14"/>'
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ chart:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+ user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+ upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/>',
+ download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/>'
 };
 const ic=(n,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]||""}</svg>`;
 function paintIcons(root=document){$$("[data-ic]",root).forEach(e=>{if(!e.firstChild){e.innerHTML=ic(e.dataset.ic,+e.dataset.s||18)}})}
@@ -392,20 +407,42 @@ function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show"
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ---------- sample data (generic, relative to today) ---------- */
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=rng(20261127), ri=(a,b)=>a+Math.floor(R()*(b-a+1));
+const CATS={Beverages:1,"Canned Goods":1,Snacks:1,"Dry Goods":1,Household:0,"Personal Care":0,Packaging:0};
+const SHELF={Beverages:240,"Canned Goods":540,Snacks:180,"Dry Goods":360};
+const Bt=(lot,d,a,b)=>({lot,exp:d===null?null:addDays(d),q:{A:a,B:b}});
+function mk(sku,name,cat,cost,price,reorder,batches){const it={sku,name,cat,food:!!CATS[cat],shelf:SHELF[cat]||0,cost,price,reorder,batches};Object.defineProperty(it,"stock",{get(){return{A:it.batches.reduce((n,b)=>n+b.q.A,0),B:it.batches.reduce((n,b)=>n+b.q.B,0)}}});return it}
 const ITEMS=[
- {sku:"SKU-1001",name:"Product A1 (24 pcs/case)",cost:340,price:480,reorder:120,stock:{A:520,B:210}},
- {sku:"SKU-1002",name:"Product A2 (24 pcs/case)",cost:370,price:520,reorder:100,stock:{A:300,B:140}},
- {sku:"SKU-1003",name:"Product B1 (12 pcs/case)",cost:700,price:960,reorder:80,stock:{A:180,B:90}},
- {sku:"SKU-1004",name:"Product B2 (12 pcs/case)",cost:740,price:1010,reorder:80,stock:{A:150,B:70}},
- {sku:"SKU-1005",name:"Product C1 (6 pcs/case)",cost:1080,price:1450,reorder:60,stock:{A:25,B:18}},
- {sku:"SKU-1006",name:"Product C2 (6 pcs/case)",cost:1130,price:1520,reorder:60,stock:{A:70,B:40}},
- {sku:"SKU-1007",name:"Product D1 (48 pcs/case)",cost:260,price:380,reorder:150,stock:{A:800,B:500}},
- {sku:"SKU-1008",name:"Product D2 (48 pcs/case)",cost:290,price:410,reorder:150,stock:{A:640,B:300}},
- {sku:"SKU-1009",name:"Product E1 (pallet pack)",cost:6700,price:8900,reorder:12,stock:{A:6,B:4}},
- {sku:"SKU-1010",name:"Product E2 (pallet pack)",cost:7100,price:9400,reorder:12,stock:{A:9,B:5}}
+ mk("SKU-1001","Product A1 (24 pcs/case)","Beverages",340,480,120,[Bt("L2407-1001",34,200,60),Bt("L2411-1001",170,320,150)]),
+ mk("SKU-1002","Product A2 (24 pcs/case)","Beverages",370,520,100,[Bt("L2409-1002",12,40,20),Bt("L2501-1002",200,260,120)]),
+ mk("SKU-1003","Product B1 (12 pcs/case)","Canned Goods",700,960,80,[Bt("L2406-1003",60,60,30),Bt("L2412-1003",300,120,60)]),
+ mk("SKU-1004","Product B2 (12 pcs/case)","Canned Goods",740,1010,80,[Bt("L2310-1004",-4,15,0),Bt("L2406-1004",90,60,30),Bt("L2408-1004",330,75,40)]),
+ mk("SKU-1005","Product C1 (6 pcs/case)","Household",1080,1450,60,[Bt("L2405-1005",null,25,18)]),
+ mk("SKU-1006","Product C2 (6 pcs/case)","Household",1130,1520,60,[Bt("L2405-1006",null,70,40)]),
+ mk("SKU-1007","Product D1 (48 pcs/case)","Snacks",260,380,150,[Bt("L2407-1007",75,300,200),Bt("L2406-1007",400,500,300)]),
+ mk("SKU-1008","Product D2 (48 pcs/case)","Snacks",290,410,150,[Bt("L2406-1008",22,140,80),Bt("L2407-1008",420,500,220)]),
+ mk("SKU-1009","Product E1 (pallet pack)","Packaging",6700,8900,12,[Bt("L2404-1009",null,6,4)]),
+ mk("SKU-1010","Product E2 (pallet pack)","Packaging",7100,9400,12,[Bt("L2404-1010",null,9,5)])
 ];
+(()=>{const cl=Object.keys(CATS);
+ for(let n=11;n<=100;n++){
+  const cat=cl[ri(0,cl.length-1)], pcs=[6,12,24,48][ri(0,3)], cost=ri(80,900), price=Math.round(cost*1.32/10)*10, reorder=ri(20,120);
+  const low=R()<.1, a=low?ri(0,Math.floor(reorder/2)):ri(40,380), b=low?ri(0,Math.floor(reorder/3)):ri(20,240), tag=String(1000+n);
+  const bs=CATS[cat]?(()=>{const a1=Math.round(a*.4),b1=Math.round(b*.4);return[Bt("L"+tag+"-1",ri(8,140),a1,b1),Bt("L"+tag+"-2",ri(160,420),a-a1,b-b1)]})():[Bt("L"+tag+"-1",null,a,b)];
+  ITEMS.push(mk("SKU-"+tag,cat+" Item "+String(n-10).padStart(2,"0")+" ("+pcs+" pcs/case)",cat,cost,price,reorder,bs));
+ }})();
 const I=sku=>ITEMS.find(i=>i.sku===sku);
 const WH={A:"Warehouse A",B:"Warehouse B"};
+const expired=b=>!!b.exp&&b.exp<TODAY;
+const sellable=(i,w)=>i.batches.filter(b=>!expired(b)).reduce((n,b)=>n+b.q[w],0);
+const totalAvail=i=>sellable(i,"A")+sellable(i,"B");
+const expMs=b=>b.exp?b.exp.getTime():9e15;
+function takeStock(i,w,q,any){let left=q;const used=[];i.batches.filter(b=>b.q[w]>0&&(any||!expired(b))).sort((a,b)=>expMs(a)-expMs(b)).forEach(b=>{if(!left)return;const t=Math.min(left,b.q[w]);b.q[w]-=t;left-=t;used.push({lot:b.lot,q:t})});return used}
+function addStock(i,w,q,lot,exp){let b=i.batches.find(x=>x.lot===lot);if(!b){b={lot,exp,q:{A:0,B:0}};i.batches.push(b)}b.q[w]+=q}
+const nextExp=i=>{const b=i.batches.filter(b=>b.exp&&b.q.A+b.q.B>0).sort((a,b)=>a.exp-b.exp)[0];return b?b.exp:null};
+const expQty=(i,days)=>i.batches.filter(b=>b.exp&&dayDiff(b.exp,TODAY)>=0&&dayDiff(b.exp,TODAY)<=days).reduce((n,b)=>n+b.q.A+b.q.B,0);
+const expiredQty=i=>i.batches.filter(expired).reduce((n,b)=>n+b.q.A+b.q.B,0);
 const STAGES=[
  {k:"At Sea",t:"Sailing to port",cls:"b-info"},{k:"At Port",t:"Arrived at port",cls:"b-info"},
  {k:"Customs",t:"Customs clearance",cls:"b-warn"},{k:"In Transit",t:"Trucking to warehouse",cls:"b-warn"},
@@ -421,18 +458,23 @@ const SHIPMENTS=[
  {id:"SHP-2406",container:"CNT-000406",supplier:"Supplier B",port:"Port A",eta:addDays(-14),stage:4,wh:"A",costs:{freight:80000,duties:52000,brokerage:13000,port:9000},lines:L([[1003,150],[1004,120],[1006,60]])}
 ];
 const CUSTS={
- 1:{name:"Customer A",terms:30,limit:150000},2:{name:"Customer B",terms:60,limit:175000},3:{name:"Customer C",terms:45,limit:200000},4:{name:"Customer D",terms:30,limit:100000},
- 5:{name:"Customer E",terms:60,limit:150000},6:{name:"Customer F",terms:45,limit:150000},7:{name:"Customer G",terms:30,limit:100000},8:{name:"Customer H",terms:60,limit:100000}
+ 1:{name:"Customer A",type:"Retailer",terms:30,limit:150000},2:{name:"Customer B",type:"Sub-distributor",terms:60,limit:175000},3:{name:"Customer C",type:"Institution",terms:45,limit:200000},4:{name:"Customer D",type:"Retailer",terms:30,limit:100000},
+ 5:{name:"Customer E",type:"Sub-distributor",terms:60,limit:150000},6:{name:"Customer F",type:"Sub-distributor",terms:45,limit:150000},7:{name:"Customer G",type:"Retailer",terms:15,limit:100000},8:{name:"Customer H",type:"Institution",terms:60,limit:100000}
 };
+for(let id=9;id<=60;id++){const x=R(),type=x<.6?"Retailer":x<.85?"Sub-distributor":"Institution",tm={Retailer:[15,30],"Sub-distributor":[30,45,60],Institution:[45,60]}[type],lim=type==="Retailer"?ri(10,30):type==="Sub-distributor"?ri(30,80):ri(20,60);CUSTS[id]={name:"Customer "+String(id).padStart(3,"0"),type,terms:tm[ri(0,tm.length-1)],limit:lim*5000}}
 const TRANSFERS=[
  {id:"TRF-300",sku:"SKU-1007",qty:100,from:"A",to:"B",date:addDays(-5),status:"Received"},
- {id:"TRF-301",sku:"SKU-1003",qty:30,from:"A",to:"B",date:addDays(-1),status:"In Transit"}
+ {id:"TRF-301",sku:"SKU-1003",qty:30,from:"A",to:"B",date:addDays(-1),status:"In Transit",lots:[{lot:"L2406-1003",q:30}]}
 ];
+const PAYD={"SHP-2411":[30,0],"SHP-2410":[10,0],"SHP-2409":[-3,0],"SHP-2408":[20,0],"SHP-2407":[-2,1],"SHP-2406":[-9,1]};
+SHIPMENTS.forEach(s=>s.pay={due:addDays(PAYD[s.id][0]),paid:!!PAYD[s.id][1]});
+const DAMAGES=[{id:"DMG-101",date:addDays(-18),sku:"SKU-1007",wh:"B",lot:"L2406-1007",qty:12,reason:"Water damage"},{id:"DMG-102",date:addDays(-9),sku:"SKU-1003",wh:"A",lot:"L2406-1003",qty:6,reason:"Broken in transit"},{id:"DMG-103",date:addDays(-3),sku:"SKU-1008",wh:"A",lot:"L2406-1008",qty:5,reason:"Handling"}];
+let dmgSeq=103;
 let trfSeq=301;
 const ORDERS=[]; const INVOICES=[];
 let soSeq=1016, invSeq=5010;
 function mkOrder(id,cust,ago,lines,status,wh,driver){
-  const o={id:"SO-"+id,cust,date:addDays(-ago-(status==="Delivered"?2:0)),lines:L(lines),status,wh,driver:driver||"Driver A",delivered:status==="Delivered"?addDays(-ago):null,receivedBy:"",pod:status==="Delivered"?{by:"Customer representative",photo:true,sig:true}:null};
+  const o={id:"SO-"+id,cust,date:addDays(-ago-(status==="Delivered"?2:0)),lines:L(lines),status,wh,driver:driver||"Driver A",via:"Truck",track:"",delivered:status==="Delivered"?addDays(-ago):null,receivedBy:"",pod:status==="Delivered"?{by:"Customer representative",photo:true,sig:true}:null};
   ORDERS.push(o);return o;
 }
 function mkInvoice(o,paidPct,pm){
@@ -453,6 +495,12 @@ mkOrder(1013,3,0,[[1002,40]],"Packed","B","Driver A");
 mkOrder(1014,6,0,[[1006,18],[1004,20]],"Pending","A","Driver B");
 mkOrder(1015,1,0,[[1003,25],[1007,60],[1008,60]],"Pending","B","Driver A");
 mkOrder(1016,2,0,[[1009,3],[1005,10]],"Credit Hold","A","Driver B");
+[1006,1013,1015].forEach(n=>{const o=ORDERS.find(x=>x.id==="SO-"+n);o.via="Courier";o.driver="Courier X";o.track="TRK-"+(7000+n)});
+(()=>{const keep=invSeq;invSeq=4900;
+ for(let n=0;n<40;n++){const cu=ri(9,60),ago=ri(3,85),k=ri(1,3),ln=[];for(let j=0;j<k;j++)ln.push([ri(1001,1100),ri(8,60)]);
+  const o=mkOrder(1101+n,cu,ago,ln,"Delivered",R()<.5?"A":"B",R()<.5?"Driver A":"Driver B");if(n%5===4){o.via="Courier";o.driver="Courier X";o.track="TRK-"+(8000+n)}
+  mkInvoice(o,R()<.65?1:(R()<.5?.5:0),["Cash","Check","Bank transfer"][ri(0,2)])}
+ invSeq=keep})();
 const invStatus=i=>{const bal=i.amount-i.paid;if(bal<=0)return "Paid";const d=dayDiff(i.due,TODAY);return d<0?"Overdue":d<=7?"Due Soon":"Current"};
 const invBadge={Paid:"b-ok",Overdue:"b-bad","Due Soon":"b-warn",Current:"b-info"};
 const ordBadge={Pending:"b-mute",Packed:"b-info","Out for Delivery":"b-warn",Delivered:"b-ok","Credit Hold":"b-bad"};
@@ -484,26 +532,29 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();sheetC
 
 /* ---------- PUBLIC ---------- */
 const cart={};
-function availBadge(i){const t=totalStock(i);if(t===0)return incoming(i.sku)?`<span class="badge b-info">Arriving soon</span>`:`<span class="badge b-bad">Out of stock</span>`;return t<=i.reorder?`<span class="badge b-warn">Low stock</span>`:`<span class="badge b-ok">In stock</span>`}
+function availBadge(i){const t=totalAvail(i);if(t===0)return incoming(i.sku)?`<span class="badge b-info">Arriving soon</span>`:`<span class="badge b-bad">Out of stock</span>`;return t<=i.reorder?`<span class="badge b-warn">Low stock</span>`:`<span class="badge b-ok">In stock</span>`}
 function renderCatalog(){
-  $("#prods").innerHTML=ITEMS.map(i=>`<div class="prod"><div class="pic">${ic("box",36)}</div><h3>${i.name}</h3><div class="meta">${i.sku}</div><div class="pr">${money(i.price)} <span class="meta">/ case</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
+  const cq=(FIL.catQ||"").toLowerCase(),cc=FIL.catC||"All categories",pc=$("#pcat");if(!pc.options.length)pc.innerHTML=["All categories",...Object.keys(CATS)].map(c=>`<option>${c}</option>`).join("");
+  const crows=ITEMS.filter(i=>(cc==="All categories"||i.cat===cc)&&(!cq||i.name.toLowerCase().includes(cq)||i.sku.toLowerCase().includes(cq))),shown=Math.min(crows.length,FIL.catN||12);
+  $("#pLines").textContent=ITEMS.length;$("#pmore").innerHTML=`<span>Showing ${shown} of ${crows.length} products</span>${shown<crows.length?`<button class="btn btn-ghost btn-sm" data-act="cat-more">Show more</button>`:""}`;
+  $("#prods").innerHTML=crows.slice(0,shown).map(i=>`<div class="prod"><div class="pic">${ic("box",36)}</div><h3>${i.name}</h3><div class="meta">${i.sku} &middot; ${i.cat}</div><div class="pr">${money(i.price)} <span class="meta">/ case</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
   $("#cartN").textContent=Object.values(cart).reduce((a,b)=>a+b,0);
 }
 function openCart(){
   const keys=Object.keys(cart);
   if(!keys.length){openModal("Your order list",`<p>Your list is empty. Add products from the catalog.</p>`);return}
   const total=keys.reduce((n,k)=>n+cart[k]*I(k).price,0);
-  openModal("Your order list",`<div class="tw"><table><thead><tr><th>Product</th><th class="num">Cases</th><th class="num">Amount</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${I(k).name}</td><td class="num">${cart[k]}</td><td class="num">${money(cart[k]*I(k).price)}</td></tr>`).join("")}</tbody></table></div><div class="sum"><div class="tot"><span>Estimated total</span><span>${money(total)}</span></div></div><label class="f" style="margin-top:14px">Payment terms<select><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>`,
+  openModal("Your order list",`<div class="tw"><table><thead><tr><th>Product</th><th class="num">Cases</th><th class="num">Amount</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${I(k).name}</td><td class="num">${cart[k]}</td><td class="num">${money(cart[k]*I(k).price)}</td></tr>`).join("")}</tbody></table></div><div class="sum"><div class="tot"><span>Estimated total</span><span>${money(total)}</span></div></div><label class="f" style="margin-top:14px">Payment terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>`,
   `<button class="btn btn-ghost" data-act="cart-clear">Clear list</button><button class="btn btn-accent" data-act="cart-submit">Send order request</button>`);
 }
 
 /* ---------- CONSOLE ---------- */
-const PAGES={dash:"Dashboard",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users"};
-let page="dash"; const FIL={inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders"};
+const PAGES={dash:"Dashboard",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports"};
+let page="dash"; const FIL={inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={dash:rDash,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers};
+  const R={dash:rDash,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports};
   $("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -518,13 +569,13 @@ function rDash(){
   const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), val=ITEMS.reduce((n,i)=>n+totalStock(i)*i.cost,0);
   const inb=SHIPMENTS.filter(s=>s.stage<4).length, openSO=ORDERS.filter(o=>o.status!=="Delivered").length, ofd=ORDERS.filter(o=>o.status==="Out for Delivery").length;
   const uo=unitsOut(30).slice(0,6), mx=Math.max(1,...uo.map(x=>x.q));
-  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" cases on hand")}${kpi("anchor","Inbound shipments",inb,"Port to warehouse")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("card","Receivables",money(outstanding()),"Open invoices")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}</div>
+  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" cases on hand")}${kpi("anchor","Inbound shipments",inb,"Port to warehouse")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("card","Receivables",money(outstanding()),"Open invoices")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}${kpi("alert","Near expiry",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Within 30 days")}</div>
   <div class="pipe">
    <button data-act="page" data-id="inbound"><div class="st">1 Port</div><div class="n">${inb}</div><div class="t">Shipments inbound</div><div class="d">Sea, port, customs, trucking</div></button>
    <button data-act="page" data-id="inventory"><div class="st">2 Warehouse</div><div class="n">${NUM.format(units)}</div><div class="t">Cases in stock</div><div class="d">${ITEMS.filter(i=>stockState(i)[0]!=="OK").length} items at or below reorder</div></button>
    <button data-act="page" data-id="sales"><div class="st">3 Sales</div><div class="n">${NUM.format(uo.reduce((n,x)=>n+x.q,0))}</div><div class="t">Cases out (30 days)</div><div class="d">Counted per item</div></button>
    <button data-act="page" data-id="sales"><div class="st">4 Delivery</div><div class="n">${ofd}</div><div class="t">Out for delivery</div><div class="d">${openSO-ofd} waiting to dispatch</div></button>
-   <button data-act="page" data-id="collections"><div class="st">5 Collections</div><div class="n">${money(outstanding())}</div><div class="t">To collect</div><div class="d">30 / 45 / 60 day terms</div></button>
+   <button data-act="page" data-id="collections"><div class="st">5 Collections</div><div class="n">${money(outstanding())}</div><div class="t">To collect</div><div class="d">15 to 60 day terms</div></button>
   </div>
   <div class="two"><div class="panel"><h2>Cases out by item (last 30 days)</h2><div class="bars">${uo.map(x=>`<div class="bar"><span>${I(x.sku).name.split(" (")[0]}</span><div class="tr"><div class="fl" style="width:${Math.round(x.q/mx*100)}%"></div></div><b>${NUM.format(x.q)}</b></div>`).join("")}</div></div>
   <div class="panel"><h2>Recent activity</h2><ul class="feed">
@@ -554,45 +605,30 @@ function shipModal(id,m){
 }
 function shipNext(id){
   const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;s.stage++;
-  if(s.stage===4){s.lines.forEach(l=>I(l.sku).stock[s.wh]+=l.qty);toast(s.id+" received at "+WH[s.wh]+". Stock updated.")}else toast(s.id+" is now: "+STAGES[s.stage].k);
+  if(s.stage===4){s.lines.forEach(l=>{const it=I(l.sku);addStock(it,s.wh,l.qty,"L"+s.id.slice(4)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});toast(s.id+" received at "+WH[s.wh]+". Stock and batch expiry updated.")}else toast(s.id+" is now: "+STAGES[s.stage].k);
   closeModal();renderPage();
-}
-function rInventory(){
-  const f=FIL.inventory, rows=ITEMS.filter(i=>f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0));
-  const units=ITEMS.reduce((n,i)=>n+totalStock(i),0);
-  return `<div class="kpis">${kpi("layers","Cases on hand",NUM.format(units),"Both warehouses")}${kpi("box","Warehouse A",NUM.format(ITEMS.reduce((n,i)=>n+i.stock.A,0)),"Main")}${kpi("box","Warehouse B",NUM.format(ITEMS.reduce((n,i)=>n+i.stock.B,0)),"Secondary")}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}</div>
-  ${filt("inventory",["All","Low Stock","Has Incoming"])}<div class="panel"><div class="tw"><table><thead><tr><th>SKU</th><th>Item</th><th class="num">Wh A</th><th class="num">Wh B</th><th class="num">Total</th><th class="num">Reorder at</th><th class="num">Incoming</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const st=stockState(i);return `<tr><td>${i.sku}</td><td>${i.name}</td><td class="num">${NUM.format(i.stock.A)}</td><td class="num">${NUM.format(i.stock.B)}</td><td class="num"><b>${NUM.format(totalStock(i))}</b></td><td class="num">${i.reorder}</td><td class="num">${incoming(i.sku)||"-"}</td><td><span class="badge ${st[1]}">${st[0]}</span></td><td><button class="btn btn-ghost btn-sm" data-act="item" data-id="${i.sku}">View</button></td></tr>`}).join("")||`<tr><td colspan="9">Nothing matches this filter.</td></tr>`}</tbody></table></div></div>${trfPanel()}`;
-}
-function itemModal(sku){
-  const i=I(sku), mv=[];
-  SHIPMENTS.filter(s=>s.stage===4).forEach(s=>s.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:s.eta,t:"Inbound "+s.id,w:s.wh,q:l.qty})));
-  ORDERS.filter(o=>o.status==="Out for Delivery"||o.status==="Delivered").forEach(o=>o.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:o.delivered||o.date,t:"Outbound "+o.id+" to "+CUSTNAME(o.cust),w:o.wh,q:-l.qty})));
-  TRANSFERS.filter(t=>t.sku===sku).forEach(t=>{mv.push({d:t.date,t:"Transfer "+t.id+" out",w:t.from,q:-t.qty});if(t.status==="Received")mv.push({d:t.date,t:"Transfer "+t.id+" in",w:t.to,q:t.qty})});
-  mv.sort((a,b)=>b.d-a.d);
-  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Selling price</b>${money(i.price)} / case</div><div><b>Warehouse A</b>${NUM.format(i.stock.A)} cases</div><div><b>Warehouse B</b>${NUM.format(i.stock.B)} cases</div><div><b>Unit cost</b>${money(i.cost)}</div><div><b>Incoming</b>${incoming(sku)||0} cases</div></div>
-  <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Cases</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":""}${m.q}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`);
 }
 function rSales(){
   const f=FIL.sales, rows=ORDERS.filter(o=>f==="All"||o.status===f).slice().sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), uo=unitsOut(30);
   const perItem=`<div class="panel"><h2>Cases out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${NUM.format(x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))}</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
   const orders=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("sales",["All","Credit Hold","Pending","Packed","Out for Delivery","Delivered"])}<button class="btn btn-primary btn-sm" data-act="so-new">${ic("plus",14)}New sales order</button></div>
-  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Cases</th><th class="num">Amount</th><th>Terms</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${o.lines.reduce((n,l)=>n+l.qty,0)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
+  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Cases</th><th class="num">Amount</th><th>Terms</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${o.lines.reduce((n,l)=>n+l.qty,0)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td>${o.via==="Courier"?"Courier":"Own truck"}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="10">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
   return filt("salesTab",["Orders","Cases out per item"])+(FIL.salesTab==="Cases out per item"?perItem:orders);
 }
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
 function soModal(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status], inv=invOf(o.id);
-  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div><div><b>Driver</b>${o.driver}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
+  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div><div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
   <div class="sum"><div class="tot"><span>Order total</span><span>${money(orderTotal(o))}</span></div></div>`,
-  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${o.status==="Credit Hold"?"Approve credit override":"Mark as: "+nx}</button>`:""}`);
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${nextLabel(o,nx)}</button>`:""}`);
 }
 function soNext(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status];if(!nx)return;
   if(nx==="Out for Delivery"){
-    const short=o.lines.find(l=>I(l.sku).stock[o.wh]<l.qty);
-    if(short){toast("Not enough "+I(short.sku).name+" at "+WH[o.wh]+" to dispatch this order.");return}
-    o.lines.forEach(l=>I(l.sku).stock[o.wh]-=l.qty);toast(o.id+" is out for delivery. Stock deducted from "+WH[o.wh]+".");
+    const short=o.lines.find(l=>sellable(I(l.sku),o.wh)<l.qty);
+    if(short){toast("Not enough in-date stock of "+I(short.sku).name+" at "+WH[o.wh]+" to dispatch this order.");return}
+    o.lines.forEach(l=>takeStock(I(l.sku),o.wh,l.qty));toast(o.id+(o.via==="Courier"?" handed to "+o.driver+".":" is out for delivery.")+" Stock deducted from "+WH[o.wh]+", earliest expiry first.");
   }else if(nx==="Delivered"){deliver(o,"Customer representative")}
   else if(o.status==="Credit Hold"){toast("Credit override approved for "+o.id+". Released to Pending.")}
   else toast(o.id+" is now: "+nx);
@@ -602,31 +638,18 @@ function deliver(o,by,pod){
   o.delivered=addDays(0);o.receivedBy=by;o.status="Delivered";o.pod=pod||{by,photo:false,sig:false};
   if(!invOf(o.id)){const inv=mkInvoice(o,0);toast(o.id+" delivered. "+inv.id+" created, due "+dfmt(inv.due)+" (Net "+inv.terms+").")}
 }
-function soNew(){
-  openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Item<select id="nsItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Cases<input id="nsQty" type="number" min="1" value="20"></label></div>
-  <label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label>`,
-  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
-}
-function soCreate(){
-  const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value;
-  const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
-  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:"Driver A",delivered:null,receivedBy:"",pod:null};
-  ORDERS.push(o);closeModal();
-  toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
-}
 function rCollections(){
   const f=FIL.collections, rows=INVOICES.filter(i=>f==="All"||invStatus(i)===f).slice().sort((a,b)=>a.due-b.due);
   const open=INVOICES.filter(i=>i.amount-i.paid>0), bucket=(lo,hi)=>open.filter(i=>{const d=-dayDiff(i.due,TODAY);return d>=lo&&d<=hi}).reduce((n,i)=>n+i.amount-i.paid,0);
   return `<div class="kpis">${kpi("card","Total outstanding",money(outstanding()),open.length+" open invoices")}${kpi("check","Not yet due",money(bucket(-999,0)),"Within terms")}${kpi("alert","1 to 30 days overdue",money(bucket(1,30)),"")}${kpi("alert","31 to 60 days overdue",money(bucket(31,60)),"")}${kpi("alert","Over 60 days overdue",money(bucket(61,9999)),"")}</div>
-  ${filt("collTab",["Invoices","Customer credit"])}${FIL.collTab==="Customer credit"?creditPanel():`${filt("collections",["All","Current","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Delivered</th><th>Terms</th><th>Due date</th><th class="num">Amount</th><th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const s=invStatus(i),bal=i.amount-i.paid,dd=dayDiff(i.due,TODAY);return `<tr><td><b>${i.id}</b></td><td>${CUSTNAME(i.cust)}</td><td>${dfmt(i.issued)}</td><td>Net ${i.terms}</td><td>${dfmt(i.due)}<br><small style="color:var(--muted)">${s==="Paid"?"":dd<0?(-dd)+" days overdue":dd===0?"due today":"in "+dd+" days"}</small></td><td class="num">${money(i.amount)}</td><td class="num"><b>${money(bal)}</b></td><td><span class="badge ${invBadge[s]}">${s}</span></td><td><button class="btn btn-ghost btn-sm" data-act="inv" data-id="${i.id}">${bal>0?"Record payment":"View"}</button></td></tr>`}).join("")||`<tr><td colspan="9">No invoices in this status.</td></tr>`}</tbody></table></div></div>`}`;
+  ${filt("collTab",["Invoices","Customer credit"])}${FIL.collTab==="Customer credit"?custBlock():`${filt("collections",["All","Current","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Delivered</th><th>Terms</th><th>Due date</th><th class="num">Amount</th><th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const s=invStatus(i),bal=i.amount-i.paid,dd=dayDiff(i.due,TODAY);return `<tr><td><b>${i.id}</b></td><td>${CUSTNAME(i.cust)}</td><td>${dfmt(i.issued)}</td><td>Net ${i.terms}</td><td>${dfmt(i.due)}<br><small style="color:var(--muted)">${s==="Paid"?"":dd<0?(-dd)+" days overdue":dd===0?"due today":"in "+dd+" days"}</small></td><td class="num">${money(i.amount)}</td><td class="num"><b>${money(bal)}</b></td><td><span class="badge ${invBadge[s]}">${s}</span></td><td><button class="btn btn-ghost btn-sm" data-act="inv" data-id="${i.id}">${bal>0?"Record payment":"View"}</button></td></tr>`}).join("")||`<tr><td colspan="9">No invoices in this status.</td></tr>`}</tbody></table></div></div>`}`;
 }
 function invModal(id){
   const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, s=invStatus(i);
   openModal(i.id+" · "+CUSTNAME(i.cust),`<div class="kv"><div><b>Sales order</b>${i.so}</div><div><b>Status</b><span class="badge ${invBadge[s]}">${s}</span></div><div><b>Delivered</b>${dfmt(i.issued)}</div><div><b>Due (Net ${i.terms})</b>${dfmt(i.due)}</div></div>
   <div class="sum" style="margin:0 0 14px"><div><span>Invoice amount</span><span>${money(i.amount)}</span></div><div><span>Paid so far</span><span>${money(i.paid)}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
   ${i.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${i.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
-  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Bank transfer</option><option>Cash</option><option>E-wallet</option><option>Check</option></select></label></div><label class="f">Reference<input id="payRef" placeholder="Reference no."></label>`:""}`,
+  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Cash</option><option>Check</option><option>Bank transfer</option></select></label></div><label class="f">Reference<input id="payRef" placeholder="Check no. or transfer ref."></label>`:""}`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0?`<button class="btn btn-ghost" data-act="remind" data-id="${i.cust}">Send reminder</button><button class="btn btn-accent" data-act="pay" data-id="${i.id}">Save payment</button>`:""}`);
 }
 function pay(id){
@@ -636,7 +659,7 @@ function pay(id){
 }
 function rSettings(){
   return `<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
-  <label class="f">Default credit terms<select><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
+  <label class="f">Default credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
   <label class="f">Warehouse A name<input value="Warehouse A"></label><label class="f">Warehouse B name<input value="Warehouse B"></label></div>
   <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
   <button class="btn btn-primary" data-act="save">Save settings</button></div>`;
@@ -646,16 +669,13 @@ function rUsers(){
   return `<div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-primary btn-sm" data-act="invite">${ic("plus",14)}Invite user</button></div><div class="panel"><div class="tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>${U.map(u=>`<tr><td>${u[0]}</td><td>${u[1]}</td><td>${u[2]}</td><td><span class="badge b-ok">Active</span></td></tr>`).join("")}</tbody></table></div></div>`;
 }
 function showAlerts(){
-  const low=ITEMS.filter(i=>stockState(i)[0]!=="OK"), od=INVOICES.filter(i=>invStatus(i)==="Overdue"), arr=SHIPMENTS.filter(s=>s.stage<4&&dayDiff(s.eta,TODAY)<=2);
-  openModal("Notifications",`<ul class="feed">${ORDERS.filter(o=>o.status==="Credit Hold").map(o=>`<li><span class="dot" style="background:var(--bad)"></span><div>${o.id} for ${CUSTNAME(o.cust)} is on credit hold (${money(orderTotal(o))})<small>Credit control</small></div></li>`).join("")}${low.map(i=>`<li><span class="dot" style="background:var(--warn)"></span><div>${i.name} is at ${totalStock(i)} cases (reorder at ${i.reorder})<small>Stock alert</small></div></li>`).join("")}${od.map(i=>`<li><span class="dot" style="background:var(--bad)"></span><div>${i.id} for ${CUSTNAME(i.cust)} is ${-dayDiff(i.due,TODAY)} days overdue (${money(i.amount-i.paid)})<small>Collections</small></div></li>`).join("")}${arr.map(s=>`<li><span class="dot"></span><div>${s.id} expected ${s.eta<=TODAY?"today":"in "+dayDiff(s.eta,TODAY)+" days"} at ${WH[s.wh]}<small>Inbound</small></div></li>`).join("")}</ul>`);
+  const low=ITEMS.filter(i=>stockState(i)[0]!=="OK").slice(0,6), exp=ITEMS.filter(i=>expQty(i,30)>0||expiredQty(i)>0).sort((a,b)=>nextExp(a)-nextExp(b)).slice(0,5), od=INVOICES.filter(i=>invStatus(i)==="Overdue"), arr=SHIPMENTS.filter(s=>s.stage<4&&dayDiff(s.eta,TODAY)<=2);
+  openModal("Notifications",`<ul class="feed">${ORDERS.filter(o=>o.status==="Credit Hold").map(o=>`<li><span class="dot" style="background:var(--bad)"></span><div>${o.id} for ${CUSTNAME(o.cust)} is on credit hold (${money(orderTotal(o))})<small>Credit control</small></div></li>`).join("")}${exp.map(i=>`<li><span class="dot" style="background:var(--${expiredQty(i)>0?"bad":"warn"})"></span><div>${i.name}: ${expiredQty(i)>0?expiredQty(i)+" cases expired":expQty(i,30)+" cases expire within 30 days"}<small>Expiry watch</small></div></li>`).join("")}${low.map(i=>`<li><span class="dot" style="background:var(--warn)"></span><div>${i.name} is at ${totalStock(i)} cases (reorder at ${i.reorder})<small>Stock alert</small></div></li>`).join("")}${od.map(i=>`<li><span class="dot" style="background:var(--bad)"></span><div>${i.id} for ${CUSTNAME(i.cust)} is ${-dayDiff(i.due,TODAY)} days overdue (${money(i.amount-i.paid)})<small>Collections</small></div></li>`).join("")}${arr.map(s=>`<li><span class="dot"></span><div>${s.id} expected ${s.eta<=TODAY?"today":"in "+dayDiff(s.eta,TODAY)+" days"} at ${WH[s.wh]}<small>Inbound</small></div></li>`).join("")}</ul>`);
 }
 
 
 /* ---------- credit, statements, transfers ---------- */
 const exposure=c=>INVOICES.filter(i=>i.cust===c).reduce((n,i)=>n+i.amount-i.paid,0)+ORDERS.filter(o=>o.cust===c&&o.status!=="Delivered").reduce((n,o)=>n+orderTotal(o),0);
-function creditPanel(){
-  return `<div class="panel"><h2>Customer balances and credit limits</h2><div class="tw"><table><thead><tr><th>Customer</th><th>Terms</th><th class="num">Credit limit</th><th class="num">Exposure</th><th class="num">Available</th><th>Usage</th><th></th></tr></thead><tbody>${Object.entries(CUSTS).map(([k,c])=>{const ex=exposure(+k),p=ex/c.limit,cls=p>=1?"bad":p>=.8?"warn":"";return `<tr><td><b>${c.name}</b></td><td>Net ${c.terms}</td><td class="num">${money(c.limit)}</td><td class="num">${money(ex)}</td><td class="num" style="color:var(${p>=1?"--bad":"--text"})">${money(c.limit-ex)}</td><td><div class="usage ${cls}" title="${Math.round(p*100)}% used"><i style="width:${Math.min(100,Math.round(p*100))}%"></i></div></td><td><button class="btn btn-ghost btn-sm" data-act="stmt" data-id="${k}">Statement</button> <button class="btn btn-ghost btn-sm" data-act="remind" data-id="${k}">Remind</button></td></tr>`}).join("")}</tbody></table></div><p class="note" style="margin-top:8px">Exposure = unpaid invoices + orders not yet delivered. A new order that pushes a customer over the limit is placed on credit hold for approval.</p></div>`;
-}
 function stmtModal(k){
   const c=CUSTS[k], inv=INVOICES.filter(i=>i.cust===+k).sort((a,b)=>a.due-b.due), bal=inv.reduce((n,i)=>n+i.amount-i.paid,0);
   openModal("Statement of account: "+c.name,`<div class="kv"><div><b>As of</b>${dfmt(TODAY)}</div><div><b>Terms</b>Net ${c.terms} days</div><div><b>Credit limit</b>${money(c.limit)}</div><div><b>Balance due</b>${money(bal)}</div></div>
@@ -675,16 +695,143 @@ function trfNew(){
   <div class="grid2"><label class="f">Cases<input id="tfQty" type="number" min="1" value="20"></label><span></span><label class="f">From<select id="tfFrom"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">To<select id="tfTo"><option value="B">Warehouse B</option><option value="A">Warehouse A</option></select></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trf-create">Create transfer</button>`);
 }
+/* ---------- paging, search, customers ---------- */
+const PG=12;
+const pager=(k,total)=>{const p=FIL[k+"Page"]||0,pages=Math.max(1,Math.ceil(total/PG));return `<div class="pager"><span>${total?p*PG+1:0} to ${Math.min(total,(p+1)*PG)} of ${NUM.format(total)}</span><span><button class="btn btn-ghost btn-sm" data-act="pg" data-k="${k}" data-id="-1" ${p<=0?"disabled":""}>Previous</button> <button class="btn btn-ghost btn-sm" data-act="pg" data-k="${k}" data-id="1" ${p>=pages-1?"disabled":""}>Next</button></span></div>`};
+const TBL={inv:()=>rInvTable(),cust:()=>rCustTable()};
+function custRows(){const q=(FIL.custQ||"").toLowerCase(),f=FIL.custType;return Object.entries(CUSTS).filter(([k,c])=>(f==="All"||c.type===f)&&(!q||c.name.toLowerCase().includes(q)||c.type.toLowerCase().includes(q)))}
+function rCustTable(){
+  const rows=custRows(),p=FIL.custPage||0;
+  return `<h2>Customer balances and credit limits</h2><div class="tw"><table><thead><tr><th>Customer</th><th>Type</th><th>Terms</th><th class="num">Credit limit</th><th class="num">Exposure</th><th class="num">Available</th><th>Usage</th><th></th></tr></thead><tbody>${rows.slice(p*PG,(p+1)*PG).map(([k,c])=>{const ex=exposure(+k),pc=ex/c.limit,cls=pc>=1?"bad":pc>=.8?"warn":"";return `<tr><td><b>${c.name}</b></td><td>${c.type}</td><td>Net ${c.terms}</td><td class="num">${money(c.limit)}</td><td class="num">${money(ex)}</td><td class="num" style="color:var(${pc>=1?"--bad":"--text"})">${money(c.limit-ex)}</td><td><div class="usage ${cls}" title="${Math.round(pc*100)}% used"><i style="width:${Math.min(100,Math.round(pc*100))}%"></i></div></td><td><button class="btn btn-ghost btn-sm" data-act="stmt" data-id="${k}">Statement</button> <button class="btn btn-ghost btn-sm" data-act="remind" data-id="${k}">Remind</button></td></tr>`}).join("")||`<tr><td colspan="8">No customers match.</td></tr>`}</tbody></table></div>${pager("cust",rows.length)}<p class="note" style="margin-top:8px">Exposure = unpaid invoices + orders not yet delivered. A new order that pushes a customer over the limit is placed on credit hold for approval.</p>`;
+}
+const custBlock=()=>`${filt("custType",["All","Retailer","Sub-distributor","Institution"])}<div class="toolbar"><input type="search" data-q="cust" placeholder="Search customers" value="${esc(FIL.custQ||"")}" aria-label="Search customers"><button class="btn btn-ghost btn-sm" data-act="import" data-id="customers">${ic("upload",14)}Import from Excel</button></div><div class="panel" id="custTbl">${rCustTable()}</div>`;
+
+/* ---------- inventory: batches, expiry, damage ---------- */
+function invRows(){const f=FIL.inventory,q=(FIL.invQ||"").toLowerCase();return ITEMS.filter(i=>(f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0)||(f==="Expiring Soon"&&(expQty(i,30)>0||expiredQty(i)>0))||(f==="Food"&&i.food)||(f==="Non-Food"&&!i.food))&&(!q||i.name.toLowerCase().includes(q)||i.sku.toLowerCase().includes(q)||i.cat.toLowerCase().includes(q)))}
+function expCell(i){const d=nextExp(i);if(!d)return `<span class="note">No expiry</span>`;const n=dayDiff(d,TODAY);return `${dfmt(d)}<br><span class="badge ${n<0?"b-bad":n<=30?"b-warn":"b-mute"}">${n<0?"Expired":n<=30?n+" days left":"In date"}</span>`}
+function rInvTable(){
+  const rows=invRows(),p=FIL.invPage||0;
+  return `<div class="tw"><table><thead><tr><th>SKU</th><th>Item</th><th class="num">Wh A</th><th class="num">Wh B</th><th class="num">Total</th><th class="num">Reorder at</th><th class="num">Incoming</th><th>Next expiry</th><th>Status</th><th></th></tr></thead><tbody>${rows.slice(p*PG,(p+1)*PG).map(i=>{const st=stockState(i);return `<tr><td>${i.sku}</td><td>${i.name}<br><span class="note">${i.cat}</span></td><td class="num">${NUM.format(i.stock.A)}</td><td class="num">${NUM.format(i.stock.B)}</td><td class="num"><b>${NUM.format(totalStock(i))}</b></td><td class="num">${i.reorder}</td><td class="num">${incoming(i.sku)||"-"}</td><td>${expCell(i)}</td><td><span class="badge ${st[1]}">${st[0]}</span></td><td><button class="btn btn-ghost btn-sm" data-act="item" data-id="${i.sku}">View</button></td></tr>`}).join("")||`<tr><td colspan="10">Nothing matches this filter.</td></tr>`}</tbody></table></div>${pager("inv",rows.length)}`;
+}
+function rInventory(){
+  const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), sum=w=>ITEMS.reduce((n,i)=>n+i.stock[w],0);
+  return `<div class="kpis">${kpi("layers","Cases on hand",NUM.format(units),ITEMS.length+" SKUs, both warehouses")}${kpi("box","Warehouse A",NUM.format(sum("A")),"Main")}${kpi("box","Warehouse B",NUM.format(sum("B")),"Secondary")}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}${kpi("alert","Expiring in 30 days",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Sold first-expiring, first-out")}${kpi("alert","Expired on hand",NUM.format(ITEMS.reduce((n,i)=>n+expiredQty(i),0))+" cases","Not sold; write off")}</div>
+  ${filt("inventory",["All","Low Stock","Has Incoming","Expiring Soon","Food","Non-Food"])}
+  <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></span></div>
+  <div class="panel" id="invTbl">${rInvTable()}</div>${trfPanel()}${dmgPanel()}`;
+}
+function itemModal(sku){
+  const i=I(sku), mv=[];
+  SHIPMENTS.filter(s=>s.stage===4).forEach(s=>s.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:s.eta,t:"Inbound "+s.id,w:s.wh,q:l.qty})));
+  ORDERS.filter(o=>o.status==="Out for Delivery"||o.status==="Delivered").forEach(o=>o.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:o.delivered||o.date,t:"Outbound "+o.id+" to "+CUSTNAME(o.cust),w:o.wh,q:-l.qty})));
+  TRANSFERS.filter(t=>t.sku===sku).forEach(t=>{mv.push({d:t.date,t:"Transfer "+t.id+" out",w:t.from,q:-t.qty});if(t.status==="Received")mv.push({d:t.date,t:"Transfer "+t.id+" in",w:t.to,q:t.qty})});
+  DAMAGES.filter(d=>d.sku===sku).forEach(d=>mv.push({d:d.date,t:"Damage "+d.id+" ("+d.reason+")",w:d.wh,q:-d.qty}));
+  mv.sort((a,b)=>b.d-a.d);
+  const bt=i.batches.filter(b=>b.q.A+b.q.B>0).sort((a,b)=>expMs(a)-expMs(b));
+  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Category</b>${i.cat} (${i.food?"food":"non-food"})</div><div><b>Selling price</b>${money(i.price)} / case</div><div><b>Unit cost</b>${money(i.cost)}</div><div><b>Warehouse A</b>${NUM.format(i.stock.A)} cases</div><div><b>Warehouse B</b>${NUM.format(i.stock.B)} cases</div><div><b>Incoming</b>${incoming(sku)||0} cases</div></div>
+  <h4 style="margin-bottom:8px">Batches${i.food?" (sold first-expiring, first-out)":""}</h4><div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Lot</th><th>Expiry</th><th class="num">Wh A</th><th class="num">Wh B</th></tr></thead><tbody>${bt.map(b=>{const n=b.exp?dayDiff(b.exp,TODAY):null;return `<tr><td>${b.lot}</td><td>${b.exp?dfmt(b.exp)+' <span class="badge '+(n<0?"b-bad":n<=30?"b-warn":"b-mute")+'">'+(n<0?"Expired":n<=30?n+" days left":"In date")+"</span>":"No expiry"}</td><td class="num">${b.q.A}</td><td class="num">${b.q.B}</td></tr>`}).join("")||`<tr><td colspan="4">No stock on hand.</td></tr>`}</tbody></table></div>
+  <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Cases</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":""}${m.q}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`);
+}
+function dmgPanel(){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Cases</th><th>Reason</th><th class="num">Cost value</th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${d.qty}</td><td>${d.reason}</td><td class="num">${money(d.qty*I(d.sku).cost)}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the cases from stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
+}
+function dmgNew(){
+  openModal("Report damage or write-off",`<label class="f">Item<select id="dmItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Warehouse<select id="dmWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Cases<input id="dmQty" type="number" min="1" value="5"></label></div>
+  <label class="f">Reason<select id="dmWhy"><option>Broken in transit</option><option>Water damage</option><option>Handling</option><option>Expired</option><option>Other</option></select></label>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="dmg-create">File report</button>`);
+}
+function dmgCreate(){
+  const i=I($("#dmItem").value),w=$("#dmWh").value,q=Math.max(1,parseInt($("#dmQty").value)||1);
+  if(i.stock[w]<q){toast("Only "+i.stock[w]+" cases of "+i.name+" at "+WH[w]+".");return}
+  const used=takeStock(i,w,q,true);DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:i.sku,wh:w,lot:used.map(u=>u.lot).join(", "),qty:q,reason:$("#dmWhy").value});
+  closeModal();toast("DMG-"+dmgSeq+" filed. "+q+" cases removed from "+WH[w]+" ("+money(q*i.cost)+" at cost).");renderPage();
+}
 function trfCreate(){
-  const sku=$("#tfItem").value, q=Math.max(1,parseInt($("#tfQty").value)||1), f=$("#tfFrom").value, t=$("#tfTo").value;
+  const i=I($("#tfItem").value), q=Math.max(1,parseInt($("#tfQty").value)||1), f=$("#tfFrom").value, t=$("#tfTo").value;
   if(f===t){toast("Choose two different warehouses.");return}
-  if(I(sku).stock[f]<q){toast("Only "+I(sku).stock[f]+" cases of "+I(sku).name+" at "+WH[f]+".");return}
-  I(sku).stock[f]-=q;TRANSFERS.push({id:"TRF-"+(++trfSeq),sku,qty:q,from:f,to:t,date:addDays(0),status:"In Transit"});
+  if(sellable(i,f)<q){toast("Only "+sellable(i,f)+" in-date cases of "+i.name+" at "+WH[f]+".");return}
+  const lots=takeStock(i,f,q);TRANSFERS.push({id:"TRF-"+(++trfSeq),sku:i.sku,qty:q,from:f,to:t,date:addDays(0),status:"In Transit",lots});
   closeModal();toast("TRF-"+trfSeq+" created. "+q+" cases are in transit to "+WH[t]+".");renderPage();
 }
 function trfRecv(id){
-  const t=TRANSFERS.find(x=>x.id===id);t.status="Received";I(t.sku).stock[t.to]+=t.qty;toast(t.id+" received at "+WH[t.to]+". Stock updated.");renderPage();
+  const t=TRANSFERS.find(x=>x.id===id),i=I(t.sku);t.status="Received";
+  (t.lots||[{lot:"L-"+t.id,q:t.qty}]).forEach(u=>{const b=i.batches.find(x=>x.lot===u.lot);addStock(i,t.to,u.q,u.lot,b?b.exp:null)});
+  toast(t.id+" received at "+WH[t.to]+". Stock updated.");renderPage();
 }
+
+/* ---------- sales orders: delivery by own truck or courier ---------- */
+const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via==="Courier"&&nx==="Out for Delivery"?"Hand over to courier":o.via==="Courier"&&nx==="Delivered"?"Courier confirmed delivery":"Mark as: "+nx;
+function soNew(){
+  openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Item<select id="nsItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Cases<input id="nsQty" type="number" min="1" value="20"></label>
+  <label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia"><option value="Truck">Own truck</option><option value="Courier">Third-party courier</option></select></label></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
+}
+function soCreate(){
+  const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value, via=$("#nsVia").value;
+  const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":"Driver A",via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
+  ORDERS.push(o);closeModal();
+  toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
+}
+
+/* ---------- reports ---------- */
+const PD={"7 days":7,"30 days":30,"90 days":90};
+const inP=(d,n)=>{if(!d)return false;const x=dayDiff(TODAY,d);return x>=0&&x<=n};
+const sumBy=(a,f)=>a.reduce((n,x)=>n+f(x),0);
+const caseCt=o=>sumBy(o.lines,l=>l.qty);
+const tbl=(head,rows,total)=>`<div class="tw"><table id="repTable"><thead><tr>${head.map(h=>`<th${h[1]?' class="num"':""}>${h[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${head.length}">No records in this period.</td></tr>`}${total?`<tr class="tr-total">${total.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
+const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Damage","Payables"];
+function rReports(){
+  const n=PD[FIL.repP], r=FIL.rep; let body="",title="",kp="";
+  if(r==="Inbound stock"){
+    title="Total inbound stock";const S=SHIPMENTS.filter(s=>s.stage===4&&inP(s.eta,n)),cs=s=>sumBy(s.lines,l=>l.qty);
+    body=tbl([["Shipment"],["Received"],["Warehouse"],["Supplier"],["Cases",1],["Landed cost",1]],S.map(s=>[s.id,dfmt(s.eta),WH[s.wh],s.supplier,NUM.format(cs(s)),money(shipCost(s))]),["Total","","","",NUM.format(sumBy(S,cs)),money(sumBy(S,shipCost))]);
+  }else if(r==="Outbound stock"){
+    title="Total outbound stock";const U=unitsOut(n);
+    body=tbl([["Item"],["Category"],["Cases out",1],["Sales value",1]],U.map(x=>[I(x.sku).name,I(x.sku).cat,NUM.format(x.q),money(x.v)]),["Total","",NUM.format(sumBy(U,x=>x.q)),money(sumBy(U,x=>x.v))]);
+  }else if(r==="Orders"){
+    title="Total orders";const O=ORDERS.filter(o=>inP(o.date,n)).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
+    kp=`<div class="kpis">${kpi("file","Total orders",NUM.format(O.length),"Last "+n+" days")}${kpi("check","Delivered",NUM.format(O.filter(o=>o.status==="Delivered").length),"")}${kpi("truck","In progress",NUM.format(O.filter(o=>["Pending","Packed","Out for Delivery"].includes(o.status)).length),"")}${kpi("alert","On credit hold",NUM.format(O.filter(o=>o.status==="Credit Hold").length),"")}${kpi("card","Order value",money(sumBy(O,orderTotal)),"")}</div>`;
+    body=tbl([["Order"],["Customer"],["Date"],["Delivery"],["Status"],["Amount",1]],O.slice(0,20).map(o=>[o.id,CUSTNAME(o.cust),dfmt(o.date),o.via==="Courier"?"Courier":"Own truck",`<span class="badge ${ordBadge[o.status]}">${o.status}</span>`,money(orderTotal(o))]),["Total ("+O.length+" orders)","","","","",money(sumBy(O,orderTotal))])+(O.length>20?`<p class="note" style="margin-top:8px">Showing the latest 20 orders. Export to CSV for the full list.</p>`:"");
+  }else if(r==="Sales invoices"){
+    title="Total sales invoices";const V=INVOICES.filter(i=>inP(i.issued,n)).sort((a,b)=>b.issued-a.issued);
+    body=tbl([["Invoice"],["Customer"],["Issued"],["Due"],["Amount",1],["Paid",1],["Balance",1],["Status"]],V.slice(0,20).map(i=>[i.id,CUSTNAME(i.cust),dfmt(i.issued),dfmt(i.due),money(i.amount),money(i.paid),money(i.amount-i.paid),`<span class="badge ${invBadge[invStatus(i)]}">${invStatus(i)}</span>`]),["Total ("+V.length+" invoices)","","","",money(sumBy(V,i=>i.amount)),money(sumBy(V,i=>i.paid)),money(sumBy(V,i=>i.amount-i.paid)),""])+(V.length>20?`<p class="note" style="margin-top:8px">Showing the latest 20 invoices. Export to CSV for the full list.</p>`:"");
+  }else if(r==="Damage"){
+    title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
+    body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Cases",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
+  }else if(r==="Payables"){
+    title="Pending payables";const P=SHIPMENTS.filter(s=>!s.pay.paid).sort((a,b)=>a.pay.due-b.pay.due);
+    kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(sumBy(P,shipCost)),P.length+" unpaid bills")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
+    body=tbl([["Shipment"],["Supplier"],["Due date"],["Status"],["Amount",1],[""]],P.map(s=>{const d=dayDiff(s.pay.due,TODAY);return [s.id,s.supplier,dfmt(s.pay.due),`<span class="badge ${d<0?"b-bad":d<=7?"b-warn":"b-info"}">${d<0?-d+" days overdue":d===0?"Due today":"Due in "+d+" days"}</span>`,money(shipCost(s)),`<button class="btn btn-ghost btn-sm" data-act="sup-paid" data-id="${s.id}">Mark paid</button>`]}),["Total pending","","","",money(sumBy(P,shipCost)),""]);
+  }else{
+    title="Sales by customer";const m={};ORDERS.filter(o=>o.status==="Delivered"&&inP(o.delivered,n)).forEach(o=>{const x=m[o.cust]=m[o.cust]||{o:0,c:0,v:0};x.o++;x.c+=caseCt(o);x.v+=orderTotal(o)});
+    const E=Object.entries(m).sort((a,b)=>b[1].v-a[1].v);
+    kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, last "+n+" days")}${kpi("users","Customers served",E.length,"")}${kpi("layers","Cases sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
+    body=tbl([["Customer"],["Type"],["Orders",1],["Cases",1],["Sales",1]],E.slice(0,15).map(([k,x])=>[CUSTNAME(k),CUSTS[k].type,x.o,NUM.format(x.c),money(x.v)]),["Total ("+E.length+" customers)","",sumBy(E,e=>e[1].o),NUM.format(sumBy(E,e=>e[1].c)),money(sumBy(E,e=>e[1].v))])+(E.length>15?`<p class="note" style="margin-top:8px">Showing the top 15 customers. Export to CSV for the full list.</p>`:"");
+  }
+  return `${filt("rep",REPS)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days"])}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
+}
+function csvExport(){
+  const t=$("#repTable");if(!t)return;
+  const rows=[...t.rows].map(r=>[...r.cells].filter(c=>!c.querySelector("button")).map(c=>'"'+c.textContent.replace(/\s+/g," ").trim().replace(/"/g,'""')+'"').join(","));
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows.join("\r\n")],{type:"text/csv"}));a.download="report-"+FIL.rep.toLowerCase().replace(/ /g,"-")+".csv";document.body.appendChild(a);a.click();a.remove();
+  toast("Report exported as CSV. It opens in Excel.");
+}
+
+/* ---------- Excel import (sample preview only) ---------- */
+function importModal(kind){
+  const C={items:{t:"Import items from Excel",f:"stock-list.xlsx",n:100,cols:[["Item Code","SKU"],["Description","Item name"],["Category","Category"],["Cost","Unit cost"],["Price","Selling price"],["Qty WH-A","Warehouse A stock"],["Qty WH-B","Warehouse B stock"],["Exp Date","Expiry date"]],rows:[["1101","Beverages Item 01 (24 pcs/case)","Beverages","340","480","520","210","30 Jun 2027"],["1102","Canned Goods Item 02 (12 pcs/case)","Canned Goods","700","960","180","90","15 Mar 2028"],["1103","Household Item 03 (6 pcs/case)","Household","1080","1450","25","18","-"],["1104","Snacks Item 04 (48 pcs/case)","Snacks","260","380","800","500","12 Jan 2027"]]},
+   customers:{t:"Import customers from Excel",f:"customer-list.xlsx",n:60,cols:[["Customer","Customer name"],["Type","Customer type"],["Terms","Payment terms (days)"],["Credit Limit","Credit limit"],["Email","Contact email"]],rows:[["Customer 061","Retailer","30","100000","accounts@customer.example"],["Customer 062","Sub-distributor","60","250000","accounts@customer.example"],["Customer 063","Institution","45","150000","accounts@customer.example"]]}}[kind];
+  openModal(C.t,`<p class="note" style="margin-bottom:10px">Bring your existing Excel file. Columns are matched to system fields, you review a preview, then import. This demo uses a sample file and reads nothing from your computer.</p>
+  <label class="f">Excel or CSV file<input type="file" id="impFile" accept=".xlsx,.xls,.csv" data-chg="impfile"></label><p class="note" id="impName" style="margin:-6px 0 12px">Sample file: ${C.f} (${C.n} rows)</p>
+  <h4 style="margin-bottom:6px">Column matching</h4><div class="tw"><table><thead><tr><th>Column in your file</th><th>Matched to</th></tr></thead><tbody>${C.cols.map(c=>`<tr><td>${c[0]}</td><td><span class="badge b-ok">${c[1]}</span></td></tr>`).join("")}</tbody></table></div>
+  <h4 style="margin:14px 0 6px">Preview (first ${C.rows.length} rows)</h4><div class="tw"><table><thead><tr>${C.cols.map(c=>`<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${C.rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="import-go" data-id="${C.n}">Import ${C.n} rows</button>`);
+}
+
+
 let podPhoto=false,podSig=false;
 function initSig(){
   const c=$("#sig");if(!c)return;const x=c.getContext("2d");x.lineWidth=3;x.lineCap="round";x.strokeStyle="#1C1F2A";let d=false;
@@ -699,7 +846,7 @@ let dtab="todo", dsel=null;
 function renderDriver(){
   $("#drvDate").textContent=dfmt(TODAY);$("#drvTitle").textContent=dtab==="todo"?"Today's route":"Delivered today";
   $$(".tabbar button").forEach(b=>b.classList.toggle("active",b.dataset.id===dtab));
-  const list=ORDERS.filter(o=>dtab==="todo"?o.status==="Out for Delivery":(o.status==="Delivered"&&o.delivered&&dayDiff(TODAY,o.delivered)<=0));
+  const list=ORDERS.filter(o=>o.via!=="Courier"&&(dtab==="todo"?o.status==="Out for Delivery":(o.status==="Delivered"&&o.delivered&&dayDiff(TODAY,o.delivered)<=0)));
   $("#drvBody").innerHTML=list.length?list.map(o=>`<button class="dcard" data-act="stop" data-id="${o.id}"><div class="r"><b>${CUSTNAME(o.cust)}</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div style="font-size:13px;color:var(--muted)">${o.id} &middot; ${o.lines.reduce((n,l)=>n+l.qty,0)} cases &middot; ${money(orderTotal(o))}</div><div style="font-size:13px;display:flex;gap:6px;align-items:center">${ic("pin",14)}Address Line, City A</div></button>`).join(""):`<div style="text-align:center;color:var(--muted);padding:40px 10px">${dtab==="todo"?"No stops left. Dispatch an order from the Console and it will appear here.":"Nothing delivered yet today."}</div>`;
 }
 function openStop(id){
@@ -725,7 +872,7 @@ document.addEventListener("click",e=>{
   else if(a==="modal-close")closeModal();
   else if(a==="page")setPage(id);
   else if(a==="side-toggle"){$("#side").classList.toggle("open");$("#sideBack").classList.toggle("open")}
-  else if(a==="fil"){FIL[t.dataset.k]=id;renderPage()}
+  else if(a==="fil"){FIL[t.dataset.k]=id;FIL.invPage=0;FIL.custPage=0;renderPage()}
   else if(a==="ship")shipModal(id);else if(a==="ship-next")shipNext(id);
   else if(a==="item")itemModal(id);
   else if(a==="so")soModal(id);else if(a==="so-next")soNext(id);else if(a==="so-new")soNew();else if(a==="so-create")soCreate();
@@ -749,9 +896,23 @@ document.addEventListener("click",e=>{
   else if(a==="trf-new")trfNew();else if(a==="trf-create")trfCreate();else if(a==="trf-recv")trfRecv(id);
   else if(a==="sheet-close")sheetClose();
   else if(a==="confirm")confirmDelivery(id);
+  else if(a==="pg"){const k=t.dataset.k;FIL[k+"Page"]=Math.max(0,(FIL[k+"Page"]||0)+(+id));const c=$("#"+k+"Tbl");c.innerHTML=TBL[k]();paintIcons(c)}
+  else if(a==="import")importModal(id);
+  else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
+  else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
+  else if(a==="csv")csvExport();
+  else if(a==="sup-paid"){SHIPMENTS.find(x=>x.id===id).pay.paid=true;toast(id+" marked as paid.");renderPage()}
+  else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
 $("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset();toast("Application received. We will contact you within one business day.")});
-document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(t&&t.dataset.chg==="alloc")shipModal(t.dataset.id,t.value)});
+document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(!t)return;const c=t.dataset.chg;
+  if(c==="alloc")shipModal(t.dataset.id,t.value);
+  else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
+  else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
+});
+document.addEventListener("input",e=>{const t=e.target.closest("[data-q]");if(!t)return;const k=t.dataset.q;FIL[k+"Q"]=t.value;FIL[k+"Page"]=0;
+  if(k==="cat"){FIL.catN=12;renderCatalog();return}
+  const c=$("#"+k+"Tbl");if(c){c.innerHTML=TBL[k]();paintIcons(c)}});
 paintIcons();
 </script>
 </body>
