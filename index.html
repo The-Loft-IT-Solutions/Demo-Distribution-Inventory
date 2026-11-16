@@ -668,14 +668,14 @@ function openCart(){
 /* ---------- CONSOLE ---------- */
 const ALLP=["dash","purchasing","inbound","inventory","sales","vehicles","returns","collections","customers","reports","settings","users"];
 const ROLES={
- "Owner":{pages:ALLP,caps:["cost","items","writeoff","po","pay","billpay","credit","apps"]},
- "Warehouse Manager":{pages:["dash","purchasing","inbound","inventory","sales","vehicles","returns"],caps:["cost","items","writeoff","po"]},
+ "Owner":{pages:ALLP,caps:["cost","items","writeoff","po","pay","billpay","credit","apps","cash","cust","admin"]},
+ "Warehouse Manager":{pages:["dash","purchasing","inbound","inventory","sales","vehicles","returns","customers","reports","settings"],caps:["cost","items","writeoff","po"],reps:["Inbound stock","Outbound stock","Returns","Vendor returns","Damage"]},
  "Inbound/Outbound Clerk":{pages:["dash","inbound","inventory","sales","vehicles","returns"],caps:[]},
  "Stockman":{pages:["dash","inventory","returns"],caps:["writeoff"]},
- "Sales Officer":{pages:["dash","inventory","sales","customers"],caps:[]},
- "Accounting":{pages:["dash","collections","purchasing","customers","reports"],caps:["cost","pay","billpay","credit","apps"]}
+ "Sales Officer":{pages:["dash","inventory","sales","customers"],caps:["cust"]},
+ "Accounting":{pages:["dash","collections","purchasing","customers","reports"],caps:["cost","pay","billpay","credit","apps","cash","cust"]}
 };
-const CAPLBL={po:"Create and send purchase orders",cost:"See item cost and landed cost",items:"Add and import items",writeoff:"File damage and write-offs",pay:"Record customer payments",billpay:"Pay supplier bills",credit:"Approve credit overrides",apps:"Approve customer applications"};
+const CAPLBL={admin:"Company settings, users and the stock rule",cash:"See the cash outlook",cust:"Add customers",po:"Create and send purchase orders",cost:"See item cost and landed cost",items:"Add and import items",writeoff:"File damage and write-offs",pay:"Record customer payments",billpay:"Pay supplier bills",credit:"Approve credit overrides",apps:"Approve customer applications"};
 let ROLE="Owner";
 const can=c=>ROLES[ROLE].caps.includes(c), pageOK=p=>ROLES[ROLE].pages.includes(p);
 const noPerm=t=>`<p class="note" style="margin:0">${t} needs a different role. You are viewing as ${ROLE}.</p>`;
@@ -711,6 +711,38 @@ function activity(){
   const ago=d=>{const n=dayDiff(TODAY,d);return n<=0?"Today":n===1?"Yesterday":n+" days ago"};
   return ev.filter(e=>e.d<=TODAY).sort((a,b)=>b.d-a.d).slice(0,6).map(e=>`<li><span class="dot"></span><div>${e.t}<small>${ago(e.d)}</small></div></li>`).join("");
 }
+function cashOutlook(weeks=8){
+  const W=[];for(let k=0;k<weeks;k++)W.push({k,from:addDays(7*k),inn:0,out:0,bal:0});
+  let od=0;
+  const put=(d,amt,key,inflow)=>{if(amt<=0)return;const off=dayDiff(d,TODAY);let k=Math.floor(off/7);if(off<0){if(inflow){od+=amt;if(!SET.assumeOverdue)return}k=0}if(k>=weeks)return;W[k][key]+=amt};
+  INVOICES.forEach(i=>put(i.due,i.amount-i.paid,"inn",true));
+  BILLS.forEach(b=>put(b.due,billBal(b),"out",false));
+  let bal=SET.cash;W.forEach(w=>{bal+=w.inn-w.out;w.bal=bal});
+  return {W,od,low:W.reduce((m,w)=>w.bal<m.bal?w:m,W[0])};
+}
+const cashAt=d=>{const o=cashOutlook(),off=dayDiff(d,TODAY);return off<0?SET.cash:o.W[Math.min(o.W.length-1,Math.floor(off/7))].bal};
+const avgCustTerms=()=>{const a=INVOICES.reduce((n,i)=>n+i.amount,0);return a?Math.round(INVOICES.reduce((n,i)=>n+i.terms*i.amount,0)/a):30};
+function cashPanel(){
+  const o=cashOutlook(),W=o.W,inn=W.reduce((n,w)=>n+w.inn,0),out=W.reduce((n,w)=>n+w.out,0),neg=W.find(w=>w.bal<0);
+  return `<div class="panel"><h2>Cash outlook, next 8 weeks</h2><div class="kpis" style="margin-bottom:12px">${kpi("card","Opening cash",money(SET.cash),"Entered in Settings")}${kpi("check","Expected in",money(inn),"Customer invoices by due date")}${kpi("truck","Expected out",money(out),"Supplier bills by due date")}${kpi("alert","Lowest balance",money(o.low.bal),"Week of "+dfmt(o.low.from))}</div>
+  ${neg?`<p class="note" style="color:var(--bad);margin:0 0 10px"><b>Cash runs short from the week of ${dfmt(neg.from)}</b> (lowest ${money(o.low.bal)}). Suppliers are paid before customers on longer terms pay us. Collect overdue invoices or ask suppliers for longer terms before restocking further.</p>`:`<p class="note" style="margin:0 0 10px">Cash stays positive across the next 8 weeks on current invoices and bills.</p>`}
+  <div class="tw"><table><thead><tr><th>Week of</th><th class="num">Money in</th><th class="num">Money out</th><th class="num">Net</th><th class="num">Balance</th></tr></thead><tbody>${W.map(w=>`<tr><td>${dfmt(w.from)}${w.k===0?` <span class="note">(includes overdue)</span>`:""}</td><td class="num">${money(w.inn)}</td><td class="num">${money(w.out)}</td><td class="num">${money(w.inn-w.out)}</td><td class="num" style="${w.bal<0?"color:var(--bad);font-weight:700":""}"><b>${money(w.bal)}</b></td></tr>`).join("")}</tbody></table></div>
+  <p class="note" style="margin-top:8px">A projection from invoice and bill due dates, assuming customers pay on time${SET.assumeOverdue?" and overdue invoices of "+money(o.od)+" are collected this week":""}. Orders not yet invoiced and purchase orders not yet billed are not included.</p></div>`;
+}
+function poGapUpd(){
+  const e=$("#poGap");if(!e)return;
+  const sn=$("#poSup").value,sp=SUP(sn);if(!sp)return;
+  const terms=+$("#poTerms").value,dp=+$("#poDp").value;
+  let tot=0;for(let k=0;k<3;k++){const it=I($("#poItem"+k).value);if(!it)continue;tot+=toStock(it,$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0)*(parseFloat($("#poCost"+k).value)||it.cost)}
+  const ov=BILLS.filter(b=>b.sup===sn&&billStat(b)==="Overdue").reduce((n,b)=>n+billBal(b),0),un=supBal(sn),cu=avgCustTerms(),L=[];
+  if(ov>0)L.push(`<span style="color:var(--bad)"><b>${sn} has overdue bills${can("cash")||can("billpay")||can("po")?" of "+money(ov):""}</b> (${money(un)} unpaid in total). Ordering more before paying them can hold up this supplier's releases.</span>`);
+  else if(un>0)L.push(`${sn} has ${money(un)} in unpaid bills, none overdue.`);
+  L.push(cu-terms>=7?`You pay this supplier on ${terms?"Net "+terms:"delivery"}, but customers pay on average on Net ${cu}. Expect to fund about ${cu-terms} days of this stock yourself.`:`This supplier's terms (${terms?"Net "+terms:"on delivery"}) are close to or longer than what customers pay on average (Net ${cu}).`);
+  if(tot>0){const due=addDays(sp.lead+terms),adv=Math.round(tot*dp/100),need=tot-adv,cash=cashAt(due);
+    if(can("cash"))L.push(`<span${cash-need<0?' style="color:var(--bad)"':""}>This order is ${money(tot)}${adv?", with "+money(adv)+" due on confirmation":""}. Projected cash around the due date (${dfmt(due)}) is ${money(cash)} before it${cash-need<0?", which would not cover the "+money(need)+" balance.":"."}</span>`);
+    else if(cash-need<0)L.push(`<span style="color:var(--bad)">Cash may be tight when this order falls due. Check with Accounting before sending it.</span>`)}
+  e.innerHTML=L.map(x=>`<p style="margin:0 0 4px">${x}</p>`).join("");
+}
 function topCust(days){
   const m={};ORDERS.filter(o=>(o.status==="Delivered"||o.status==="Out for Delivery")&&dayDiff(TODAY,o.delivered||o.date)<=days).forEach(o=>{const x=m[o.cust]=m[o.cust]||{c:o.cust,n:0,u:0,v:0,last:null};x.n++;x.u+=o.lines.reduce((n,l)=>n+l.qty,0);x.v+=orderTotal(o);const d=o.delivered||o.date;if(!x.last||d>x.last)x.last=d});
   return Object.values(m).sort((a,b)=>b.v-a.v);
@@ -733,6 +765,7 @@ function rDash(){
   </div>
   <div class="two"><div class="panel"><h2>Units out by item (last 30 days)</h2><div class="bars">${uo.map(x=>`<div class="bar"><span>${I(x.sku).name.split(" (")[0]}</span><div class="tr"><div class="fl" style="width:${Math.round(x.q/mx*100)}%"></div></div><b>${NUM.format(x.q)}</b></div>`).join("")}</div></div>
   <div class="panel"><h2>Recent activity</h2><ul class="feed">${activity()}</ul></div></div>
+  ${can("cash")?cashPanel():""}
   ${topPanel()}`;
 }
 function rInbound(){
@@ -883,14 +916,14 @@ function catDel(old){
   if(ITEMS.some(i=>i.cat===old)){toast("Move or remove the items in "+old+" first.");return}
   delete CATS[old];delete SHELF[old];SUPPS.forEach(x=>{x.cats=x.cats.filter(c=>c!==old)});closeModal();toast(old+" deleted.");catRefresh();
 }
-const SET={stockRule:"block"};
+const SET={stockRule:"block",cash:2500000,assumeOverdue:true};
 function rSettings(){
-  return `<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
+  return `${can("admin")?`<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
   <label class="f">Default credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
   <label class="f">Warehouse A name<input value="Warehouse A"></label><label class="f">Warehouse B name<input value="Warehouse B"></label></div>
   <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
-  <label class="f" style="margin-top:10px">Sales orders above available stock<select data-chg="stockrule"><option value="block" ${SET.stockRule==="block"?"selected":""}>Block the order</option><option value="allow" ${SET.stockRule==="allow"?"selected":""}>Allow it (picking waits for stock)</option></select></label><p class="note" style="margin:4px 0 12px">Applies when creating a sales order. Available stock means in-date stock in the warehouse the order ships from.</p>
-  <button class="btn btn-primary" data-act="save">Save settings</button></div>${catPanel()}${uomPanel()}`;
+  <label class="f" style="margin-top:10px">Sales orders above available stock<select data-chg="stockrule"><option value="block" ${SET.stockRule==="block"?"selected":""}>Block the order</option><option value="allow" ${SET.stockRule==="allow"?"selected":""}>Allow it (picking waits for stock)</option></select></label><div class="grid2"><label class="f">Opening cash balance (PHP)<input type="number" min="0" step="1000" value="${SET.cash}" data-chg="setcash"></label><label class="f">Cash outlook: overdue invoices<select data-chg="setoverdue"><option value="yes" ${SET.assumeOverdue?"selected":""}>Assume they are collected this week</option><option value="no" ${SET.assumeOverdue?"":"selected"}>Leave them out</option></select></label></div><p class="note" style="margin:4px 0 12px">The cash balance is typed in by hand for the demo. Applies when creating a sales order. Available stock means in-date stock in the warehouse the order ships from.</p>
+  <button class="btn btn-primary" data-act="save">Save settings</button></div>`:""}${catPanel()}${uomPanel()}`;
 }
 function rUsers(){
   const U=[["Admin User","admin@companya.example","Owner"],["Sample User 1","user1@companya.example","Warehouse Manager"],["Sample User 2","user2@companya.example","Inbound/Outbound Clerk"],["Sample User 3","user3@companya.example","Stockman"],["Sample User 4","user4@companya.example","Sales Officer"],["Sample User 5","user5@companya.example","Accounting"],["Driver A","drivera@companya.example","Driver"]];
@@ -936,7 +969,7 @@ function rCustTable(){
   const rows=custRows(),p=FIL.custPage||0;
   return `<h2>Customer balances and credit limits</h2><div class="tw"><table><thead><tr><th>Customer</th><th>Type</th><th>Terms</th><th class="num">Credit limit</th><th class="num">Exposure</th><th class="num">Available</th><th>Usage</th><th></th></tr></thead><tbody>${rows.slice(p*PG,(p+1)*PG).map(([k,c])=>{const ex=exposure(+k),pc=ex/c.limit,cls=pc>=1?"bad":pc>=.8?"warn":"";return `<tr><td><b>${c.name}</b></td><td>${c.type}</td><td>Net ${c.terms}</td><td class="num">${money(c.limit)}</td><td class="num">${money(ex)}</td><td class="num" style="color:var(${pc>=1?"--bad":"--text"})">${money(c.limit-ex)}</td><td><div class="usage ${cls}" title="${Math.round(pc*100)}% used"><i style="width:${Math.min(100,Math.round(pc*100))}%"></i></div></td><td><button class="btn btn-ghost btn-sm" data-act="stmt" data-id="${k}">Statement</button> <button class="btn btn-ghost btn-sm" data-act="remind" data-id="${k}">Remind</button></td></tr>`}).join("")||`<tr><td colspan="8">No customers match.</td></tr>`}</tbody></table></div>${pager("cust",rows.length)}<p class="note" style="margin-top:8px">Exposure = unpaid invoices + orders not yet delivered. A new order that pushes a customer over the limit is placed on credit hold for approval.</p>`;
 }
-const custBlock=()=>`${filt("custType",["All","Retailer","Sub-distributor","Institution"])}<div class="toolbar"><input type="search" data-q="cust" placeholder="Search customers" value="${esc(FIL.custQ||"")}" aria-label="Search customers"><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-act="cust-new">${ic("plus",14)}Add customer</button><button class="btn btn-ghost btn-sm" data-act="import" data-id="customers">${ic("upload",14)}Import from Excel</button></span></div><div class="panel" id="custTbl">${rCustTable()}</div>`;
+const custBlock=()=>`${filt("custType",["All","Retailer","Sub-distributor","Institution"])}<div class="toolbar"><input type="search" data-q="cust" placeholder="Search customers" value="${esc(FIL.custQ||"")}" aria-label="Search customers"><span style="display:flex;gap:8px;flex-wrap:wrap">${can("cust")?`<button class="btn btn-primary btn-sm" data-act="cust-new">${ic("plus",14)}Add customer</button>`:""}<button class="btn btn-ghost btn-sm" data-act="import" data-id="customers">${ic("upload",14)}Import from Excel</button></span></div><div class="panel" id="custTbl">${rCustTable()}</div>`;
 
 /* ---------- inventory: batches, expiry, damage ---------- */
 function invRows(){const f=FIL.inventory,q=(FIL.invQ||"").toLowerCase();return ITEMS.filter(i=>(f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0)||(f==="Expiring Soon"&&(expQty(i,30)>0||expiredQty(i)>0))||(f==="Food"&&i.food)||(f==="Non-Food"&&!i.food))&&(!q||i.name.toLowerCase().includes(q)||i.sku.toLowerCase().includes(q)||i.cat.toLowerCase().includes(q)))}
@@ -1305,14 +1338,15 @@ function poNew(supName){
   let sug=ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
   const sugd=sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
   const row=k=>{const it=sug[k],q=it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):"";
-    return `<div class="porow" style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
+    return `<div class="porow" style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" data-chg="pogap" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" data-chg="pogap" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" data-chg="pogap" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
   openModal("New purchase order",`<div class="grid2"><label class="f">Supplier<select id="poSup" data-chg="posup">${["International","Local"].map(g=>`<optgroup label="${g}">${SUPPS.filter(x=>x.kind===g).map(x=>`<option ${x.name===sn?"selected":""}>${x.name} (${x.country})</option>`.replace("<option ",`<option value="${x.name}" `)).join("")}</optgroup>`).join("")}</select></label>
    <label class="f">Deliver to<select id="poWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label>
-   <label class="f">Down payment<select id="poDp">${DPOPTS.map(t=>`<option value="${t}">${dpLabel(t)}</option>`).join("")}</select></label>
-   <label class="f">Payment terms${""}<select id="poTerms">${TERMOPTS.map(t=>`<option value="${t}" ${t===sp.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select></label></div>
+   <label class="f">Down payment<select id="poDp" data-chg="pogap">${DPOPTS.map(t=>`<option value="${t}">${dpLabel(t)}</option>`).join("")}</select></label>
+   <label class="f">Payment terms${""}<select id="poTerms" data-chg="pogap">${TERMOPTS.map(t=>`<option value="${t}" ${t===sp.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select></label></div>
    <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual terms ${termLabel(sp.terms)}, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
-   <div style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost / stock unit</span></div>${row(0)}${row(1)}${row(2)}`,
+   <div style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost / stock unit</span></div>${row(0)}${row(1)}${row(2)}<div id="poGap" class="note" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px"></div>`,
    `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">Save as draft</button>`);
+  poGapUpd();
 }
 function poCreate(){
   const sn=$("#poSup").value, lines=[0,1,2].map(k=>({sku:$("#poItem"+k).value,qty:$("#poItem"+k).value?toStock(I($("#poItem"+k).value),$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0):0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
@@ -1339,16 +1373,16 @@ function billTab(){
   const od=open.filter(b=>billStat(b)==="Overdue"), soon=open.filter(b=>billStat(b)==="Due Soon"), paid30=BILLS.reduce((n,b)=>n+b.payments.filter(p=>inP(p.date,30)).reduce((m,p)=>m+p.amt,0),0);
   const sm=a=>a.reduce((n,b)=>n+billBal(b),0), rows=all.filter(b=>f==="All"||billStat(b)===f);
   return `<div class="kpis">${kpi("card","Total payable",money(Math.max(0,sm(open)-cr)),open.length+" unpaid bills"+(cr?", less "+money(cr)+" credit notes":""))}${kpi("alert","Overdue",money(sm(od)),od.length+(od.length===1?" bill":" bills"))}${kpi("truck","Due in 7 days",money(sm(soon)),soon.length+(soon.length===1?" bill":" bills"))}${kpi("check","Paid, last 30 days",money(paid30),"")}</div>
-  ${filt("bills",["All","Open","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Bill</th><th>Payee</th><th>PO</th><th>Due</th><th>Status</th><th class="num">Amount</th><th class="num">Balance</th><th></th></tr></thead><tbody>${rows.map(b=>{const s=billStat(b);return `<tr><td><b>${b.id}</b></td><td>${b.sup}<div class="note" style="margin:0">${b.type}</div></td><td>${b.po}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[s]}">${s}</span></td><td class="num">${money(b.amt)}</td><td class="num">${money(billBal(b))}</td><td><button class="btn btn-ghost btn-sm" data-act="bill" data-id="${b.id}">${billBal(b)>0?"Pay":"View"}</button></td></tr>`}).join("")}</tbody></table></div>${cr?`<p class="note" style="margin-top:8px">Credit notes from suppliers (returns to vendor) of ${money(cr)} are deducted from the total payable.</p>`:""}</div>`;
+  ${filt("bills",["All","Open","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Bill</th><th>Payee</th><th>PO</th><th>Due</th><th>Status</th><th class="num">Amount</th><th class="num">Balance</th><th></th></tr></thead><tbody>${rows.map(b=>{const s=billStat(b);return `<tr><td><b>${b.id}</b></td><td>${b.sup}<div class="note" style="margin:0">${b.type}</div></td><td>${b.po}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[s]}">${s}</span>${b.req&&billBal(b)>0?` <span class="badge b-warn">Requested</span>`:""}</td><td class="num">${money(b.amt)}</td><td class="num">${money(billBal(b))}</td><td><button class="btn btn-ghost btn-sm" data-act="bill" data-id="${b.id}">${billBal(b)>0&&can("billpay")?"Pay":"View"}</button></td></tr>`}).join("")}</tbody></table></div>${cr?`<p class="note" style="margin-top:8px">Credit notes from suppliers (returns to vendor) of ${money(cr)} are deducted from the total payable.</p>`:""}</div>`;
 }
 function billModal(id){
   const b=BILLS.find(x=>x.id===id), bal=billBal(b), s=billStat(b), sp=SUP(b.sup), intl=sp&&sp.kind==="International"&&b.type==="Goods";
-  openModal(b.id+" · "+b.sup,`<div class="kv"><div><b>Purchase order</b>${b.po}</div><div><b>Status</b><span class="badge ${billBadge[s]}">${s}</span></div><div><b>Type</b>${b.type}</div><div><b>Due</b>${dfmt(b.due)}</div></div>
+  openModal(b.id+" · "+b.sup,`<div class="kv"><div><b>Purchase order</b>${b.po}</div><div><b>Status</b><span class="badge ${billBadge[s]}">${s}</span></div><div><b>Type</b>${b.type}</div><div><b>Due</b>${dfmt(b.due)}</div>${b.req&&bal>0?`<div><b>Payment requested</b>${b.req.by}, ${dfmt(b.req.date)}</div>`:""}</div>
   <div class="sum" style="margin:0 0 14px"><div><span>Bill amount</span><span>${money(b.amt)}</span></div><div><span>Paid so far</span><span>${money(billPaid(b))}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
   ${intl?`<p class="note" style="margin:-6px 0 12px">${usdNote(b.sup,b.amt)}.</p>`:""}
   ${b.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${b.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td>${p.proof?`<a href="${p.proof.url}" target="_blank" rel="noopener" title="${esc(p.proof.name)}">${ic("upload",13)} ${esc(p.proof.name.length>18?p.proof.name.slice(0,15)+"...":p.proof.name)}</a>`:`<span class="note">No proof</span>`}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
   ${bal>0&&!can("billpay")?noPerm("Paying a supplier bill"):""}${bal>0&&can("billpay")?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="bpAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="bpMethod">${(intl?["Wire transfer","Bank transfer","Check"]:["Bank transfer","Check","Cash"]).map(m=>`<option>${m}</option>`).join("")}</select></label></div><label class="f">Reference<input id="bpRef" placeholder="Check no. or transfer ref."></label><label class="f">Proof of payment (optional)<input id="bpProof" type="file" accept="image/*,.pdf"></label><p class="note" style="margin:0">Transfer slip, wire confirmation or check photo. Image or PDF.</p>`:""}`,
-  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0&&can("billpay")?`<button class="btn btn-accent" data-act="bill-pay" data-id="${b.id}">Save payment</button>`:""}`);
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0&&can("billpay")?`<button class="btn btn-accent" data-act="bill-pay" data-id="${b.id}">Save payment</button>`:""}${bal>0&&!can("billpay")&&can("po")?(b.req?`<span class="note">Payment requested ${dfmt(b.req.date)}.</span>`:`<button class="btn btn-accent" data-act="bill-req" data-id="${b.id}">Request payment</button>`):""}`);
 }
 function billPay(id){
   const b=BILLS.find(x=>x.id===id), bal=billBal(b), amt=Math.min(bal,Math.round(parseFloat($("#bpAmt").value)||0));
@@ -1370,6 +1404,7 @@ const caseCt=o=>sumBy(o.lines,l=>l.qty);
 const tbl=(head,rows,total)=>`<div class="tw"><table id="repTable"><thead><tr>${head.map(h=>`<th${h[1]?' class="num"':""}>${h[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${head.length}">No records in this period.</td></tr>`}${total?`<tr class="tr-total">${total.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
 const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Returns","Vendor returns","Damage","Payables"];
 function rReports(){
+  const RV=ROLES[ROLE].reps||REPS;if(!RV.includes(FIL.rep))FIL.rep=RV[0];
   const n=PD[FIL.repP], r=FIL.rep; let body="",title="",kp="";
   if(r==="Inbound stock"){
     title="Total inbound stock";const S=SHIPMENTS.filter(s=>s.stage===4&&inP(s.eta,n)),cs=s=>sumBy(s.lines,l=>l.qty);
@@ -1403,7 +1438,7 @@ function rReports(){
     kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, "+perLbl(n))}${kpi("users","Customers served",E.length,"")}${kpi("layers","Units sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
     body=tbl([["Customer"],["Type"],["Orders",1],["Qty",1],["Sales",1]],E.slice(0,15).map(([k,x])=>[CUSTNAME(k),CUSTS[k].type,x.o,NUM.format(x.c),money(x.v)]),["Total ("+E.length+" customers)","",sumBy(E,e=>e[1].o),NUM.format(sumBy(E,e=>e[1].c)),money(sumBy(E,e=>e[1].v))])+(E.length>15?`<p class="note" style="margin-top:8px">Showing the top 15 customers. Export to CSV for the full list.</p>`:"");
   }
-  return `${filt("rep",REPS)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days","Custom"])}${r!=="Payables"&&FIL.repP==="Custom"?`<span class="daterange"><label>From <input type="date" value="${FIL.repFrom||ymdv(addDays(-30))}" data-chg="repdate" data-id="from" aria-label="From date"></label><label>To <input type="date" value="${FIL.repTo||ymdv(addDays(0))}" data-chg="repdate" data-id="to" aria-label="To date"></label></span>`:""}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
+  return `${filt("rep",RV)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days","Custom"])}${r!=="Payables"&&FIL.repP==="Custom"?`<span class="daterange"><label>From <input type="date" value="${FIL.repFrom||ymdv(addDays(-30))}" data-chg="repdate" data-id="from" aria-label="From date"></label><label>To <input type="date" value="${FIL.repTo||ymdv(addDays(0))}" data-chg="repdate" data-id="to" aria-label="To date"></label></span>`:""}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
 }
 function csvExport(){
   const t=$("#repTable");if(!t)return;
@@ -1497,7 +1532,7 @@ document.addEventListener("click",e=>{
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
   else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
-  else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);
+  else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);else if(a==="bill-req"){const b=BILLS.find(x=>x.id===id);b.req={by:ROLE,date:addDays(0)};closeModal();toast("Payment requested for "+b.id+". Accounting will see it on the bill.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
 $("#acctForm").addEventListener("submit",e=>{e.preventDefault();const f=e.target.elements, a={id:"APP-"+(++appSeq),date:addDays(0),name:f[0].value.trim(),company:f[1].value.trim(),email:f[2].value.trim(),mobile:f[3].value.trim(),type:f[4].value,terms:parseInt(f[5].value.replace(/\D/g,""))||30,status:"Pending"};APPS.push(a);e.target.reset();toast("Application "+a.id+" received. We will contact you within one business day.")});
@@ -1517,8 +1552,11 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="repdate"){if(!t.value)return;FIL[t.dataset.id==="from"?"repFrom":"repTo"]=t.value;if(!FIL.repFrom)FIL.repFrom=ymdv(addDays(-30));if(!FIL.repTo)FIL.repTo=ymdv(addDays(0));
     if(FIL.repFrom>FIL.repTo){if(t.dataset.id==="from")FIL.repTo=FIL.repFrom;else FIL.repFrom=FIL.repTo;toast("The start date was after the end date, so I matched them.")}renderPage()}
   else if(c==="role"){ROLE=t.value;applyRole();if(!pageOK(page))setPage("dash");else renderPage();toast("Now viewing as "+ROLE+".")}
+  else if(c==="setcash"){SET.cash=Math.max(0,parseFloat(t.value)||0);toast("Opening cash balance set to "+money(SET.cash)+".")}
+  else if(c==="setoverdue"){SET.assumeOverdue=t.value==="yes";toast(SET.assumeOverdue?"Overdue invoices are counted as collected this week.":"Overdue invoices are left out of the cash outlook.")}
+  else if(c==="pogap")poGapUpd()
   else if(c==="stockrule"){SET.stockRule=t.value;toast(t.value==="block"?"Orders above available stock are now blocked.":"Orders above available stock are now allowed.")}
-  else if(c==="poitem"){const it=I(t.value);if(it)$("#poU"+t.dataset.id).innerHTML=unitOpts(it);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
+  else if(c==="poitem"){const it=I(t.value);if(it)$("#poU"+t.dataset.id).innerHTML=unitOpts(it);setTimeout(poGapUpd,0);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
   else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
   else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
 });
