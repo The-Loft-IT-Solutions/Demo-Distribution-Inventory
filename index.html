@@ -538,6 +538,7 @@ const poStatus=p=>{const x=poShip(p);return x?(x.stage===4?"Received":"In transi
 const poBadge={Draft:"b-mute",Sent:"b-info",Confirmed:"b-warn","In transit":"b-warn",Received:"b-ok"};
 const creditTotal=()=>RTVS.filter(x=>x.status==="Credit received").reduce((n,x)=>n+x.value,0);
 SHIPMENTS.forEach((sh,k)=>{
+  sh.bl="HBL"+sh.id.slice(4)+"07";
   const sp=SUP(sh.supplier), lines=sh.lines.map(l=>({sku:l.sku,qty:l.qty,cost:I(l.sku).cost}));
   const po={id:"PO-31"+sh.id.slice(6),sup:sh.supplier,date:dPlus(sh.eta,-sp.lead),expected:sh.eta,wh:sh.wh,lines,shp:sh.id};POS.push(po);
   const goods=lines.reduce((n,l)=>n+l.qty*l.cost,0), ex=extraOf(sh);
@@ -653,13 +654,13 @@ function shipModal(id,m){
   const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=STAGES[s.stage+1];
   const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
   const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
-  openModal(s.id+" · "+s.container,`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div><div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
+  openModal(s.id+" · "+s.container,`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div><div><b>Bill of lading</b>${s.bl||"Not entered"}</div><div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
    <ul class="tl">${STAGES.map((st,k)=>`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
    <label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
    <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
    <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
-   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
+   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
 }
 function shipNext(id){
   const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;s.stage++;
@@ -898,7 +899,7 @@ function rtvNew(dmgId){
   const d=DAMAGES.find(x=>x.id===dmgId), sk=d?d.sku:ITEMS[0].sku;
   openModal(d?"Return "+d.id+" to vendor":"New return to vendor (RTV)",`<label class="f">Item<select id="rvItem" ${d?"disabled":""}>${ITEMS.map(i=>`<option value="${i.sku}" ${i.sku===sk?"selected":""}>${i.name}</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Warehouse<select id="rvWh" ${d?"disabled":""}><option value="A" ${d&&d.wh==="A"?"selected":""}>Warehouse A</option><option value="B" ${d&&d.wh==="B"?"selected":""}>Warehouse B</option></select></label><label class="f">Cases<input id="rvQty" type="number" min="1" value="${d?d.qty:5}" ${d?"disabled":""}></label>
-  <label class="f">Vendor<select id="rvSup">${SUPPLIERS.map(x=>`<option ${d&&supplierOfLot(d.lot)===x?"selected":""}>${x}</option>`).join("")}</select></label><label class="f">Reason<select id="rvWhy">${["Damaged","Expired","Wrong item","Quality issue"].map(x=>`<option>${x}</option>`).join("")}</select></label></div>
+  <label class="f">Vendor<select id="rvSup">${SUPPS.map(z=>z.name).map(x=>`<option ${d&&supplierOfLot(d.lot)===x?"selected":""}>${x}</option>`).join("")}</select></label><label class="f">Reason<select id="rvWhy">${["Damaged","Expired","Wrong item","Quality issue"].map(x=>`<option>${x}</option>`).join("")}</select></label></div>
   <label class="f">Vendor makes it right by<select id="rvRes"><option value="Credit">Credit note (reduces what we owe)</option><option value="Replacement">Replacement cases</option></select></label>
   <p class="note">${d?"These cases are already out of stock as damage, so no stock is deducted.":"The cases leave the warehouse stock now, earliest expiry first."}</p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="rtv-create" data-id="${d?d.id:""}">Create RTV</button>`);
@@ -957,13 +958,52 @@ function poNext(id){
   }
   closeModal();renderPage();
 }
-function poBook(id){
-  const p=POS.find(x=>x.id===id), sp=SUP(p.sup), tot=poTotal(p), n=++shpSeq, r=x=>Math.max(1000,Math.round(tot*x/1000)*1000);
-  const sh={id:"SHP-"+n,container:"CNT-000"+(n-2000),supplier:p.sup,port:sp.port||"Port A",eta:addDays(sp.lead),stage:0,wh:p.wh,costs:{freight:r(.06),duties:r(.05),brokerage:r(.012),port:r(.006)},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty}))};
-  sh.pay={due:addDays(sp.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;
-  mkBill({sup:p.sup,po:p.id,type:"Goods",date:addDays(0),due:addDays(sp.terms),amt:tot});
-  mkBill({sup:"Forwarder and broker",po:p.id,type:"Freight, duties and fees",date:addDays(0),due:dPlus(sh.eta,7),amt:extraOf(sh)});
-  closeModal();toast(sh.id+" created for "+p.id+". Track it in Inbound Shipments. Two bills were added to payables.");renderPage();
+const ymd=d=>d.toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+function shipForm(poId,shId){
+  const sh=shId?SHIPMENTS.find(x=>x.id===shId):null, p=POS.find(x=>x.id===(poId||(POS.find(q=>q.shp===shId)||{}).id)), sp=SUP(p.sup), tot=poTotal(p);
+  const r=x=>Math.max(1000,Math.round(tot*x/1000)*1000), c=sh?sh.costs:{freight:r(.06),duties:r(.05),brokerage:r(.012),port:r(.006)};
+  openModal(sh?"Shipment details · "+sh.id:"Inbound shipment for "+p.id,`<p class="note" style="margin:0 0 10px">${p.sup}, ${originOf(p.sup)}. Goods value ${money(tot)}.</p>
+  <div class="grid2"><label class="f">Container number<input id="shCnt" value="${sh?sh.container:"CNT-000"+(shpSeq+1-2000)}"></label><label class="f">Bill of lading no.<input id="shBl" value="${sh&&sh.bl?sh.bl:""}" placeholder="B/L number"></label>
+  <label class="f">Port of arrival<select id="shPort">${["Port A","Port B"].map(x=>`<option ${(sh?sh.port:sp.port||"Port A")===x?"selected":""}>${x}</option>`).join("")}</select></label><label class="f">ETA<input id="shEta" type="date" value="${ymd(sh?sh.eta:addDays(sp.lead))}"></label></div>
+  <h4 style="margin:4px 0 8px">Charges from the forwarder and broker (PHP)</h4><div class="grid2">${[["freight","Freight"],["duties","Duties"],["brokerage","Brokerage"],["port","Port fees"]].map(([k,l])=>`<label class="f">${l}<input id="shC_${k}" type="number" min="0" value="${c[k]}"></label>`).join("")}</div>
+  <p class="note">${sh?"Changes update the landed cost and the unpaid broker bill.":"Starting figures are estimates. Replace them with the amounts on the broker's statement."}</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ship-save" data-id="${p.id}" data-sh="${sh?sh.id:""}">${sh?"Save details":"Create shipment"}</button>`);
+}
+function shipSave(poId,shId){
+  const p=POS.find(x=>x.id===poId), sp=SUP(p.sup), g=k=>Math.max(0,parseFloat($("#shC_"+k).value)||0);
+  const costs={freight:g("freight"),duties:g("duties"),brokerage:g("brokerage"),port:g("port")}, cnt=$("#shCnt").value.trim(), eta=new Date($("#shEta").value+"T12:00:00");
+  if(!cnt||isNaN(eta)){toast("Enter the container number and a valid ETA.");return}
+  let sh=shId&&SHIPMENTS.find(x=>x.id===shId);
+  if(sh)Object.assign(sh,{container:cnt,bl:$("#shBl").value.trim(),port:$("#shPort").value,eta,costs});
+  else{
+    sh={id:"SHP-"+(++shpSeq),container:cnt,bl:$("#shBl").value.trim(),supplier:p.sup,port:$("#shPort").value,eta,stage:0,wh:p.wh,costs,lines:p.lines.map(l=>({sku:l.sku,qty:l.qty}))};
+    sh.pay={due:addDays(sp.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;
+    mkBill({sup:p.sup,po:p.id,type:"Goods",date:addDays(0),due:addDays(sp.terms),amt:poTotal(p)});
+  }
+  p.expected=eta;
+  const fb=BILLS.find(b=>b.po===p.id&&b.type==="Freight, duties and fees");
+  if(fb){if(!fb.payments.length){fb.amt=extraOf(sh);fb.due=dPlus(eta,7)}}
+  else mkBill({sup:"Forwarder and broker",po:p.id,type:"Freight, duties and fees",date:addDays(0),due:dPlus(eta,7),amt:extraOf(sh)});
+  closeModal();toast(shId?sh.id+" details saved.":sh.id+" created for "+p.id+". Track it in Inbound Shipments. Two bills were added to payables.");renderPage();
+}
+function supNew(){
+  const cats=Object.keys(CATS);
+  openModal("Add supplier",`<div class="grid2"><label class="f">Supplier name<input id="snName" placeholder="Company name"></label><label class="f">Type<select id="snKind" data-chg="supkind"><option>Local</option><option>International</option></select></label>
+  <label class="f">City<input id="snCity"></label><label class="f" id="snCtryW" style="display:none">Country<input id="snCtry"></label>
+  <label class="f" id="snPortW" style="display:none">Usual port of arrival<select id="snPort"><option>Port A</option><option>Port B</option></select></label>
+  <label class="f">Payment terms<select id="snTerms">${[15,30,45,60].map(x=>`<option value="${x}" ${x===30?"selected":""}>Net ${x}</option>`).join("")}</select></label><label class="f">Lead time (days)<input id="snLead" type="number" min="1" value="3"></label>
+  <label class="f">Main category<select id="snC1">${cats.map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Second category<select id="snC2"><option value="">None</option>${cats.map(c=>`<option>${c}</option>`).join("")}</select></label>
+  <label class="f">Email<input id="snEmail" type="email" placeholder="orders@company.example"></label><label class="f">Phone<input id="snPhone"></label></div><p class="note" id="snNote">Local suppliers are paid in PHP. International suppliers are billed in USD.</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="sup-create">Save supplier</button>`);
+}
+function supCreate(){
+  const name=$("#snName").value.trim(), kind=$("#snKind").value, city=$("#snCity").value.trim(), ctry=$("#snCtry").value.trim(), intl=kind==="International";
+  if(!name||!city||(intl&&!ctry)){toast("Enter the supplier name, city"+(intl?" and country":"")+".");return}
+  if(SUPPS.some(x=>x.name.toLowerCase()===name.toLowerCase())){toast(name+" is already in the supplier list.");return}
+  const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  const x={name,kind,country:intl?ctry:"Philippines",city,cur:intl?"USD":"PHP",terms:+$("#snTerms").value,lead:Math.max(1,parseInt($("#snLead").value)||1),cats:[$("#snC1").value,$("#snC2").value].filter((c,i,a)=>c&&a.indexOf(c)===i),email:$("#snEmail").value.trim()||"orders@"+slug+".example",phone:$("#snPhone").value.trim()||"Not provided"};
+  if(intl)x.port=$("#snPort").value;
+  SUPPS.push(x);FIL.supKind="All";FIL.purTab="Suppliers";closeModal();toast(name+" added to the supplier list.");renderPage();
 }
 function poNew(supName){
   const sn=typeof supName==="string"&&SUP(supName)?supName:"Supplier E", sp=SUP(sn);
@@ -988,7 +1028,7 @@ function supTab(){
   const rows=SUPPS.filter(x=>FIL.supKind==="All"||x.kind===FIL.supKind), nl=SUPPS.filter(x=>x.kind==="Local").length, op=POS.filter(p=>poStatus(p)!=="Received"&&poStatus(p)!=="Draft");
   const bal=BILLS.reduce((n,b)=>n+billBal(b),0);
   return `<div class="kpis">${kpi("users","Suppliers",SUPPS.length,nl+" local, "+(SUPPS.length-nl)+" international")}${kpi("file","Open purchase orders",op.length,money(op.reduce((n,p)=>n+poTotal(p),0))+" on order")}${kpi("card","Payable balance",money(bal),"All bills")}</div>
-  ${filt("supKind",["All","Local","International"])}<div class="panel"><div class="tw"><table><thead><tr><th>Supplier</th><th>Type</th><th>Location</th><th>Terms</th><th>Supplies</th><th class="num">Open POs</th><th class="num">Balance</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.name}</b></td><td>${kindTag(x.name)}</td><td>${originOf(x.name)}</td><td>Net ${x.terms}</td><td>${x.cats.join(", ")}</td><td class="num">${op.filter(p=>p.sup===x.name).length}</td><td class="num">${money(supBal(x.name))}</td><td><button class="btn btn-ghost btn-sm" data-act="sup" data-id="${x.name}">View</button></td></tr>`).join("")}</tbody></table></div></div>`;
+  <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("supKind",["All","Local","International"])}<button class="btn btn-primary btn-sm" data-act="sup-new">${ic("plus",14)}Add supplier</button></div><div class="panel"><div class="tw"><table><thead><tr><th>Supplier</th><th>Type</th><th>Location</th><th>Terms</th><th>Supplies</th><th class="num">Open POs</th><th class="num">Balance</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.name}</b></td><td>${kindTag(x.name)}</td><td>${originOf(x.name)}</td><td>Net ${x.terms}</td><td>${x.cats.join(", ")}</td><td class="num">${op.filter(p=>p.sup===x.name).length}</td><td class="num">${money(supBal(x.name))}</td><td><button class="btn btn-ghost btn-sm" data-act="sup" data-id="${x.name}">View</button></td></tr>`).join("")}</tbody></table></div></div>`;
 }
 function supModal(n){
   const x=SUP(n), pl=POS.filter(p=>p.sup===n).sort((a,b)=>b.date-a.date), bl=BILLS.filter(b=>b.sup===n&&billBal(b)>0);
@@ -1154,7 +1194,7 @@ document.addEventListener("click",e=>{
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
-  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")poBook(id);
+  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
@@ -1162,6 +1202,7 @@ $("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset()
 document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(!t)return;const c=t.dataset.chg;
   if(c==="alloc")shipModal(t.dataset.id,t.value);
   else if(c==="posup")poNew(t.value);
+  else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
   else if(c==="poitem"){const it=I(t.value);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
   else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
   else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
