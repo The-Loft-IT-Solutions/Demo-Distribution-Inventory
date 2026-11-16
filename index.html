@@ -824,7 +824,7 @@ function rInventory(){
   const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), sum=w=>ITEMS.reduce((n,i)=>n+i.stock[w],0);
   return `<div class="kpis">${kpi("layers","Cases on hand",NUM.format(units),ITEMS.length+" SKUs, both warehouses")}${kpi("box","Warehouse A",NUM.format(sum("A")),"Main")}${kpi("box","Warehouse B",NUM.format(sum("B")),"Secondary")}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}${kpi("alert","Expiring in 30 days",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Sold first-expiring, first-out")}${kpi("alert","Expired on hand",NUM.format(ITEMS.reduce((n,i)=>n+expiredQty(i),0))+" cases","Not sold; write off")}</div>
   ${filt("inventory",["All","Low Stock","Has Incoming","Expiring Soon","Food","Non-Food"])}
-  <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></span></div>
+  <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button><button class="btn btn-primary btn-sm" data-act="item-new">${ic("plus",14)}Add item</button></span></div>
   <div class="panel" id="invTbl">${rInvTable()}</div>${trfPanel()}${dmgPanel()}`;
 }
 function itemModal(sku){
@@ -843,16 +843,35 @@ function itemModal(sku){
 function dmgPanel(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Cases</th><th>Reason</th><th class="num">Cost value</th><th></th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${d.qty}</td><td>${d.reason}</td><td class="num">${money(d.qty*I(d.sku).cost)}</td><td>${d.rtv?`<span class="badge b-info">${d.rtv}</span>`:`<button class="btn btn-ghost btn-sm" data-act="rtv-new" data-id="${d.id}">Return to vendor</button>`}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the cases from stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
 }
+function itemNew(){
+  openModal("Add item",`<label class="f">Item name<input id="niName" placeholder="Name and pack size, e.g. 24 pcs/case"></label>
+  <div class="grid2"><label class="f">Category<select id="niCat">${Object.keys(CATS).map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Reorder level (cases)<input id="niRe" type="number" min="0" value="20"></label>
+  <label class="f">Cost per case (PHP)<input id="niCost" type="number" min="0" step="0.01"></label><label class="f">Selling price per case (PHP)<input id="niPrice" type="number" min="0" step="0.01"></label>
+  <label class="f">Opening stock (cases)<input id="niQty" type="number" min="0" value="0"></label><label class="f">Warehouse<select id="niWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label></div>
+  <p class="note">The SKU is assigned automatically. Food items get an expiry date from the category's usual shelf life.</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="item-create">Save item</button>`);
+}
+function itemCreate(){
+  const name=$("#niName").value.trim(), cat=$("#niCat").value, cost=parseFloat($("#niCost").value)||0, price=parseFloat($("#niPrice").value)||0, q=Math.max(0,parseInt($("#niQty").value)||0);
+  if(!name){toast("Enter the item name.");return}
+  if(cost<=0||price<=0){toast("Enter the cost and selling price per case.");return}
+  if(ITEMS.some(i=>i.name.toLowerCase()===name.toLowerCase())){toast(name+" is already in the item list.");return}
+  const sku="SKU-"+(Math.max(...ITEMS.map(i=>parseInt(i.sku.slice(4))))+1), it=mk(sku,name,cat,cost,price,Math.max(0,parseInt($("#niRe").value)||0),[]);
+  ITEMS.push(it);if(q>0)addStock(it,$("#niWh").value,q,"OPEN-"+sku.slice(4),it.food?addDays(it.shelf):null);
+  FIL.invQ=name;FIL.inventory="All";FIL.invPage=0;closeModal();toast(sku+" added"+(q?" with "+q+" cases in "+WH[$("#niWh").value]:" with no stock yet")+(price<cost?". Note: the selling price is below cost.":"."));renderPage();
+}
 function dmgNew(){
   openModal("Report damage or write-off",`<label class="f">Item<select id="dmItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Warehouse<select id="dmWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Cases<input id="dmQty" type="number" min="1" value="5"></label></div>
-  <label class="f">Reason<select id="dmWhy"><option>Broken in transit</option><option>Water damage</option><option>Handling</option><option>Expired</option><option>Other</option></select></label>`,
+  <label class="f">Reason<select id="dmWhy" data-chg="dmwhy"><option>Broken in transit</option><option>Water damage</option><option>Handling</option><option>Expired</option><option>Other</option></select></label>
+  <label class="f" id="dmOtherW" style="display:none">Describe the reason<input id="dmOther" placeholder="What happened?"></label>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="dmg-create">File report</button>`);
 }
 function dmgCreate(){
   const i=I($("#dmItem").value),w=$("#dmWh").value,q=Math.max(1,parseInt($("#dmQty").value)||1);
+  let why=$("#dmWhy").value;if(why==="Other"){const x=$("#dmOther").value.trim();if(!x){toast("Describe the reason for the damage.");return}why="Other: "+x}
   if(i.stock[w]<q){toast("Only "+i.stock[w]+" cases of "+i.name+" at "+WH[w]+".");return}
-  const used=takeStock(i,w,q,true);DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:i.sku,wh:w,lot:used.map(u=>u.lot).join(", "),qty:q,reason:$("#dmWhy").value});
+  const used=takeStock(i,w,q,true);DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:i.sku,wh:w,lot:used.map(u=>u.lot).join(", "),qty:q,reason:why});
   closeModal();toast("DMG-"+dmgSeq+" filed. "+q+" cases removed from "+WH[w]+" ("+money(q*i.cost)+" at cost).");renderPage();
 }
 function trfCreate(){
@@ -1333,7 +1352,7 @@ document.addEventListener("click",e=>{
   else if(a==="pg"){const k=t.dataset.k;FIL[k+"Page"]=Math.max(0,(FIL[k+"Page"]||0)+(+id));const c=$("#"+k+"Tbl");c.innerHTML=TBL[k]();paintIcons(c)}
   else if(a==="import")importModal(id);
   else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
-  else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
+  else if(a==="item-new")itemNew();else if(a==="item-create")itemCreate();else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
@@ -1346,6 +1365,7 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   if(c==="alloc")shipModal(t.dataset.id,t.value);
   else if(c==="posup")poNew(t.value);
   else if(c==="trmode"){const sea=t.value==="sea";$("#trSea").style.display=sea?"block":"none";$("#vhLbl").textContent=sea?"Truck to the origin port":"Vehicle"}
+  else if(c==="dmwhy"){$("#dmOtherW").style.display=t.value==="Other"?"":"none"}
   else if(c==="cntype"){$("#ncLimit").value=TYPE_LIMIT[t.value]}
   else if(c==="vhsel"){$("#vhHired").style.display=t.value==="hired"?"block":"none"}
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
