@@ -1307,15 +1307,16 @@ function billModal(id){
   openModal(b.id+" · "+b.sup,`<div class="kv"><div><b>Purchase order</b>${b.po}</div><div><b>Status</b><span class="badge ${billBadge[s]}">${s}</span></div><div><b>Type</b>${b.type}</div><div><b>Due</b>${dfmt(b.due)}</div></div>
   <div class="sum" style="margin:0 0 14px"><div><span>Bill amount</span><span>${money(b.amt)}</span></div><div><span>Paid so far</span><span>${money(billPaid(b))}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
   ${intl?`<p class="note" style="margin:-6px 0 12px">${usdNote(b.sup,b.amt)}.</p>`:""}
-  ${b.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${b.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
-  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="bpAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="bpMethod">${(intl?["Wire transfer","Bank transfer","Check"]:["Bank transfer","Check","Cash"]).map(m=>`<option>${m}</option>`).join("")}</select></label></div><label class="f">Reference<input id="bpRef" placeholder="Check no. or transfer ref."></label>`:""}`,
+  ${b.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${b.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td>${p.proof?`<a href="${p.proof.url}" target="_blank" rel="noopener" title="${esc(p.proof.name)}">${ic("upload",13)} ${esc(p.proof.name.length>18?p.proof.name.slice(0,15)+"...":p.proof.name)}</a>`:`<span class="note">No proof</span>`}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
+  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="bpAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="bpMethod">${(intl?["Wire transfer","Bank transfer","Check"]:["Bank transfer","Check","Cash"]).map(m=>`<option>${m}</option>`).join("")}</select></label></div><label class="f">Reference<input id="bpRef" placeholder="Check no. or transfer ref."></label><label class="f">Proof of payment (optional)<input id="bpProof" type="file" accept="image/*,.pdf"></label><p class="note" style="margin:0">Transfer slip, wire confirmation or check photo. Image or PDF.</p>`:""}`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0?`<button class="btn btn-accent" data-act="bill-pay" data-id="${b.id}">Save payment</button>`:""}`);
 }
 function billPay(id){
   const b=BILLS.find(x=>x.id===id), bal=billBal(b), amt=Math.min(bal,Math.round(parseFloat($("#bpAmt").value)||0));
   if(amt<=0){toast("Enter an amount to pay.");return}
-  b.payments.push({date:addDays(0),amt,method:$("#bpMethod").value,ref:$("#bpRef").value.trim()||"REF-"+(7000+BILLS.length)});
-  closeModal();toast(money(amt)+" paid to "+b.sup+" for "+b.id+(billBal(b)>0?". Balance "+money(billBal(b))+".":". Bill fully paid."));renderPage();
+  const fl=$("#bpProof").files[0];if(fl&&fl.size>5*1024*1024){toast("Proof is over 5 MB. Choose a smaller file.");return}
+  b.payments.push({date:addDays(0),amt,method:$("#bpMethod").value,ref:$("#bpRef").value.trim()||"REF-"+(7000+BILLS.length),proof:fl?{name:fl.name,url:URL.createObjectURL(fl)}:null});
+  closeModal();toast(money(amt)+" paid to "+b.sup+" for "+b.id+(billBal(b)>0?". Balance "+money(billBal(b))+".":". Bill fully paid.")+(fl?" Proof attached.":""));renderPage();
 }
 
 /* ---------- reports ---------- */
