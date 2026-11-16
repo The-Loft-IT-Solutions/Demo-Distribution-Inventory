@@ -558,6 +558,7 @@ LP("PO-3118","Supplier E",-1,2,"A","Sent",[[1005,120],[1006,80]]);
 LP("PO-3119","Supplier F",-3,1,"B","Confirmed",[[1002,150],[1004,100]]);
 
 POS.forEach(p=>{p.terms=SUP(p.sup).terms;p.dp=0});
+{const q=LP("PO-3120","Supplier H",-2,1,"A","Confirmed",[[1010,40]]);q.shp="SHP-2405";SHIPMENTS.push({id:"SHP-2405",container:"",bl:"",supplier:"Supplier H",port:"Direct delivery",eta:q.expected,stage:3,wh:"A",costs:{freight:0,duties:0,brokerage:0,port:0},lines:q.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,pay:{due:addDays(30),paid:false}})}
 {const p=POS.find(x=>x.id==="PO-3119");p.dp=50;const amt=poTotal(p)/2,b=mkBill({sup:p.sup,po:p.id,type:"Down payment (50%)",date:addDays(-2),due:addDays(-1),amt});b.payments.push({date:addDays(-1),amt,method:"Bank transfer",ref:"BT-5130"})}
 [["PO-3116","Supplier H",-9,-6,"A",[[1001,100],[1007,150]]],["PO-3115","Supplier E",-20,-17,"A",[[1003,200]]],["PO-3114","Supplier F",-42,-40,"B",[[1009,12],[1002,120]]]].forEach((x,k)=>{
   const p=LP(x[0],x[1],x[2],x[3],x[4],"Received",x[5]);p.recv=p.expected;
@@ -654,7 +655,7 @@ function rDash(){
 }
 function rInbound(){
   const rows=SHIPMENTS.filter(s=>FIL.inbound==="All"||STAGES[s.stage].k===FIL.inbound);
-  return `${filt("inbound",["All",...STAGES.map(s=>s.k)])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Supplier</th><th>Point of origin</th><th>Port</th><th>ETA</th><th>To</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.supplier}</td><td>${originOf(s.supplier)}</td><td>${s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh].replace("Warehouse ","Whse ")}</td><td><span class="badge ${STAGES[s.stage].cls}">${STAGES[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
+  return `${filt("inbound",["All",...STAGES.map(s=>s.k)])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Supplier</th><th>Point of origin</th><th>Port</th><th>ETA</th><th>To</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.supplier}</td><td>${originOf(s.supplier)}</td><td>${s.local?"Direct":s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh].replace("Warehouse ","Whse ")}</td><td><span class="badge ${STAGES[s.stage].cls}">${STAGES[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
 }
 let ALLOC="Value";
 function shipModal(id,m){
@@ -662,17 +663,19 @@ function shipModal(id,m){
   const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=STAGES[s.stage+1];
   const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
   const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
-  openModal(s.id+" · "+s.container,`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div><div><b>Bill of lading</b>${s.bl||"Not entered"}</div><div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
-   <ul class="tl">${STAGES.map((st,k)=>`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
-   <label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>
+  openModal(s.id+" · "+(s.container||"Local delivery"),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
+   <ul class="tl">${STAGES.map((st,k)=>s.local&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
+   ${s.local?"":`<label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>`}
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
-   <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
+   <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${s.local?"":Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
    <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
-   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
+   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4&&!s.local?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
 }
 function shipNext(id){
   const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;s.stage++;
   if(s.stage===4){s.lines.forEach(l=>{const it=I(l.sku);addStock(it,s.wh,l.qty,"L"+s.id.slice(4)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});toast(s.id+" received at "+WH[s.wh]+". Stock and batch expiry updated.")}else toast(s.id+" is now: "+STAGES[s.stage].k);
+  const lp=POS.find(x=>x.id&&x.shp===s.id);
+  if(lp&&s.local&&!lp.recv){lp.recv=addDays(0);const bal=balAmt(lp);if(bal>0){const b=mkBill({sup:lp.sup,po:lp.id,type:lp.dp?"Balance":"Goods",date:addDays(0),due:addDays(lp.terms),amt:bal});toast(s.id+" received at "+WH[s.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.")}}
   closeModal();renderPage();
 }
 function rSales(){
@@ -940,12 +943,12 @@ function poTab(){
 }
 function poModal(id){
   const p=POS.find(x=>x.id===id), sp=SUP(p.sup), st=poStatus(p), tot=poTotal(p), intl=sp.kind==="International", sh=poShip(p), bl=BILLS.filter(b=>b.po===p.id);
-  const flow=intl?["Draft","Sent","Confirmed","In transit","Received"]:["Draft","Sent","Confirmed","Received"], k=flow.indexOf(st);
+  const flow=["Draft","Sent","Confirmed","In transit","Received"], k=flow.indexOf(st);
   let act="";
   if(st==="Draft")act=`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Send to supplier</button>`;
   else if(st==="Sent")act=`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Mark as confirmed</button>`;
   else if(st==="Confirmed"&&intl)act=`<button class="btn btn-accent" data-act="po-book" data-id="${p.id}">Create inbound shipment</button>`;
-  else if(st==="Confirmed")act=`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Receive at ${WH[p.wh]}</button>`;
+  else if(st==="Confirmed")act=`<button class="btn btn-accent" data-act="po-dispatch" data-id="${p.id}">Mark as dispatched</button>`;
   else if(st==="In transit")act=`<button class="btn btn-accent" data-act="ship" data-id="${sh.id}">Track ${sh.id}</button>`;
   openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Down payment</b>${st==="Draft"||st==="Sent"?`<select data-chg="podp" data-id="${p.id}">${DPOPTS.map(t=>`<option value="${t}" ${t===p.dp?"selected":""}>${dpLabel(t)}</option>`).join("")}</select>`:dpLabel(p.dp)}</div><div><b>Payment terms${p.dp?" on balance":""}</b>${st==="Draft"||st==="Sent"?`<select data-chg="poterms" data-id="${p.id}">${TERMOPTS.map(t=>`<option value="${t}" ${t===p.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select>`:termLabel(p.terms)}</div>${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
    <ul class="tl">${flow.map((x,j)=>`<li class="${j<k?"done":j===k?"cur":""}"><span class="c">${j<k||(j===k&&x==="Received")?ic("check",12):""}</span>${x}</li>`).join("")}</ul>
@@ -954,16 +957,16 @@ function poModal(id){
    ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
 }
+function poDispatch(id){
+  const p=POS.find(x=>x.id===id), n=++shpSeq, d=addDays(0);
+  const sh={id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:"Direct delivery",eta:p.expected<d?d:p.expected,stage:3,wh:p.wh,costs:{freight:0,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true};
+  sh.pay={due:addDays(p.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;
+  closeModal();toast(p.id+" dispatched by "+p.sup+". "+sh.id+" is on its way to "+WH[p.wh]+".");renderPage();
+}
 function poNext(id){
   const p=POS.find(x=>x.id===id);
   if(p.status==="Draft"){p.status="Sent";toast(p.id+" sent to "+p.sup+".")}
   else if(p.status==="Sent"){p.status="Confirmed";const d=p.dp?mkBill({sup:p.sup,po:p.id,type:"Down payment ("+p.dp+"%)",date:addDays(0),due:addDays(2),amt:dpAmt(p)}):null;toast(p.id+" confirmed by "+p.sup+"."+(d?" "+d.id+" for the "+money(d.amt)+" down payment is due in 2 days.":""))}
-  else if(p.status==="Confirmed"){
-    p.status="Received";p.recv=addDays(0);
-    p.lines.forEach(l=>{const it=I(l.sku);addStock(it,p.wh,l.qty,"LP"+p.id.slice(3)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});
-    const bal=balAmt(p), b=bal>0?mkBill({sup:p.sup,po:p.id,type:p.dp?"Balance":"Goods",date:addDays(0),due:addDays(p.terms),amt:bal}):null;
-    toast(p.id+" received at "+WH[p.wh]+". Stock updated"+(b?" and "+b.id+" for "+money(b.amt)+" added to payables.":". Fully paid in advance, no balance to pay."));
-  }
   closeModal();renderPage();
 }
 const ymd=d=>d.toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
@@ -1204,7 +1207,7 @@ document.addEventListener("click",e=>{
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
-  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
+  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")poDispatch(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
