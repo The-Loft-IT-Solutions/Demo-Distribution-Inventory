@@ -322,6 +322,7 @@ td.num,th.num{text-align:right}
     <button class="nl" data-act="page" data-id="inbound"><span data-ic="anchor" data-s="18"></span>Inbound Shipments</button>
     <button class="nl" data-act="page" data-id="inventory"><span data-ic="layers" data-s="18"></span>Inventory</button>
     <button class="nl" data-act="page" data-id="sales"><span data-ic="truck" data-s="18"></span>Sales &amp; Deliveries</button>
+    <button class="nl" data-act="page" data-id="vehicles"><span data-ic="pin" data-s="18"></span>Vehicles</button>
     <button class="nl" data-act="page" data-id="returns"><span data-ic="back" data-s="18"></span>Returns &amp; Damage</button>
     <button class="nl" data-act="page" data-id="collections"><span data-ic="card" data-s="18"></span>Collections</button>
     <button class="nl" data-act="page" data-id="customers"><span data-ic="users" data-s="18"></span>Customers</button>
@@ -529,6 +530,16 @@ const TERMOPTS=[0,15,30,45,60], DPOPTS=[0,30,50,100];
 const dpLabel=d=>d===0?"None":d===100?"100% paid in advance":d+"% advance";
 const dpAmt=p=>Math.round(poTotal(p)*(p.dp||0)/100), balAmt=p=>poTotal(p)-dpAmt(p);
 const termShort=p=>p.dp===100?"Advance":(p.dp?p.dp+"% + ":"")+(p.terms===0?"COD":"Net "+p.terms);
+const VEHICLES=[
+ {id:"VH-1",plate:"NAA 1234",type:"Closed van",cap:300,driver:"Driver A",maint:false},
+ {id:"VH-2",plate:"NBB 5678",type:"6-wheeler truck",cap:800,driver:"Driver B",maint:false},
+ {id:"VH-3",plate:"NCC 9012",type:"10-wheeler truck",cap:1500,driver:"Driver C",maint:true}
+];
+const VTYPES=["Closed van","Wing van","6-wheeler truck","10-wheeler truck","Trailer"]; let vhSeq=3;
+const vehOf=o=>o.via==="Courier"?null:VEHICLES.find(v=>v.driver===o.driver);
+const vehRoute=v=>ORDERS.some(o=>o.status==="Out for Delivery"&&o.via!=="Courier"&&o.driver===v.driver)||SHIPMENTS.some(x=>x.stage===3&&x.veh&&x.veh.plate===v.plate);
+const vehStatus=v=>v.maint?"Maintenance":vehRoute(v)?"On route":"Available";
+const vehBadge={Available:"b-ok","On route":"b-warn",Maintenance:"b-bad"};
 const SUP=n=>SUPPS.find(x=>x.name===n);
 const originOf=n=>{const x=SUP(n);return x?(x.kind==="Local"?x.city:x.city+", "+x.country):""};
 const dPlus=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
@@ -552,13 +563,14 @@ SHIPMENTS.forEach((sh,k)=>{
   const fb=mkBill({sup:"Forwarder and broker",po:po.id,type:"Freight, duties and fees",date:dPlus(sh.eta,-3),due:dPlus(sh.eta,sh.stage===4?-1:7),amt:ex});
   if(sh.stage===4)fb.payments.push({date:dPlus(sh.eta,-1),amt:ex,method:"Bank transfer",ref:"BT-"+(5100+k)});
 });
+SHIPMENTS.find(x=>x.id==="SHP-2409").veh={plate:"TRK 4471",type:"10-wheeler truck",driver:"Hauler driver",owner:"Hauler P"};
 const LP=(id,sup,ago,exp,wh,status,pairs)=>{const p={id,sup,terms:SUP(sup).terms,dp:0,date:addDays(ago),expected:addDays(exp),wh,status,lines:pairs.map(([n,q])=>({sku:"SKU-"+n,qty:q,cost:I("SKU-"+n).cost}))};POS.push(p);return p};
 LP("PO-3117","Supplier G",0,5,"B","Draft",[[1008,60]]);
 LP("PO-3118","Supplier E",-1,2,"A","Sent",[[1005,120],[1006,80]]);
 LP("PO-3119","Supplier F",-3,1,"B","Confirmed",[[1002,150],[1004,100]]);
 
 POS.forEach(p=>{p.terms=SUP(p.sup).terms;p.dp=0});
-{const q=LP("PO-3120","Supplier H",-2,1,"A","Confirmed",[[1010,40]]);q.shp="SHP-2405";SHIPMENTS.push({id:"SHP-2405",container:"",bl:"",supplier:"Supplier H",port:"Direct delivery",eta:q.expected,stage:3,wh:"A",costs:{freight:0,duties:0,brokerage:0,port:0},lines:q.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,pay:{due:addDays(30),paid:false}})}
+{const q=LP("PO-3120","Supplier H",-2,1,"A","Confirmed",[[1010,40]]);q.shp="SHP-2405";SHIPMENTS.push({id:"SHP-2405",container:"",bl:"",supplier:"Supplier H",port:"Direct delivery",eta:q.expected,stage:3,wh:"A",costs:{freight:0,duties:0,brokerage:0,port:0},lines:q.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,veh:{plate:"SUP 7702",type:"Closed van",driver:"Supplier driver",owner:"Supplier H"},pay:{due:addDays(30),paid:false}})}
 {const p=POS.find(x=>x.id==="PO-3119");p.dp=50;const amt=poTotal(p)/2,b=mkBill({sup:p.sup,po:p.id,type:"Down payment (50%)",date:addDays(-2),due:addDays(-1),amt});b.payments.push({date:addDays(-1),amt,method:"Bank transfer",ref:"BT-5130"})}
 [["PO-3116","Supplier H",-9,-6,"A",[[1001,100],[1007,150]]],["PO-3115","Supplier E",-20,-17,"A",[[1003,200]]],["PO-3114","Supplier F",-42,-40,"B",[[1009,12],[1002,120]]]].forEach((x,k)=>{
   const p=LP(x[0],x[1],x[2],x[3],x[4],"Received",x[5]);p.recv=p.expected;
@@ -611,12 +623,12 @@ function openCart(){
 }
 
 /* ---------- CONSOLE ---------- */
-const PAGES={dash:"Dashboard",purchasing:"Purchasing",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
+const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
 let page="dash"; const FIL={purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={dash:rDash,purchasing:rPurchasing,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports,returns:rReturns};
+  const R={dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:custBlock,reports:rReports,returns:rReturns};
   $("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -663,7 +675,7 @@ function shipModal(id,m){
   const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=STAGES[s.stage+1];
   const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
   const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
-  openModal(s.id+" · "+(s.container||"Local delivery"),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
+  openModal(s.id+" · "+(s.container||"Local delivery"),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}${s.veh?`<div><b>Vehicle</b>${s.veh.plate}, ${s.veh.type}</div><div><b>Driver</b>${s.veh.driver}${s.veh.owner==="Own"?" (own)":", "+s.veh.owner}</div>`:""}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
    <ul class="tl">${STAGES.map((st,k)=>s.local&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
    ${s.local?"":`<label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>`}
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
@@ -671,8 +683,10 @@ function shipModal(id,m){
    <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4&&!s.local?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
 }
-function shipNext(id){
-  const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;s.stage++;
+function shipNext(id,force){
+  const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;
+  if(s.stage===2&&!s.veh&&!s.local&&!force){trkForm("ship",id);return}
+  s.stage++;
   if(s.stage===4){s.lines.forEach(l=>{const it=I(l.sku);addStock(it,s.wh,l.qty,"L"+s.id.slice(4)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});toast(s.id+" received at "+WH[s.wh]+". Stock and batch expiry updated.")}else toast(s.id+" is now: "+STAGES[s.stage].k);
   const lp=POS.find(x=>x.id&&x.shp===s.id);
   if(lp&&s.local&&!lp.recv){lp.recv=addDays(0);const bal=balAmt(lp);if(bal>0){const b=mkBill({sup:lp.sup,po:lp.id,type:lp.dp?"Balance":"Goods",date:addDays(0),due:addDays(lp.terms),amt:bal});toast(s.id+" received at "+WH[s.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.")}}
@@ -688,7 +702,7 @@ function rSales(){
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
 function soModal(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status], inv=invOf(o.id);
-  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div>${o.rel?`<div style="grid-column:1/-1"><b>On delivery</b>${o.rel}</div>`:""}${o.replaces?`<div><b>Replacement for</b>${o.replaces} (no charge)</div>`:""}<div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
+  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div>${o.rel?`<div style="grid-column:1/-1"><b>On delivery</b>${o.rel}</div>`:""}${o.replaces?`<div><b>Replacement for</b>${o.replaces} (no charge)</div>`:""}<div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+(vehOf(o)?vehOf(o).plate+", "+vehOf(o).type+", ":"")+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}${l.buf?` <span class="note">(+${l.buf} spare)</span>`:""}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
   <div class="sum"><div class="tot"><span>Order total</span><span>${money(orderTotal(o))}</span></div></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${o.status==="Delivered"?`<button class="btn btn-ghost" data-act="ret-new" data-id="${o.id}">Process return</button>`:""}${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${nextLabel(o,nx)}</button>`:""}`);
@@ -845,13 +859,14 @@ const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via
 function soNew(){
   openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Item<select id="nsItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Cases<input id="nsQty" type="number" min="1" value="20"></label>
-  <label class="f">Extra cases loaded for replacements<input id="nsBuf" type="number" min="0" value="0"></label><label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia"><option value="Truck">Own truck</option><option value="Courier">Third-party courier</option></select></label></div>`,
+  <label class="f">Extra cases loaded for replacements<input id="nsBuf" type="number" min="0" value="0"></label><label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} cases)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
 }
 function soCreate(){
-  const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value, via=$("#nsVia").value;
+  const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel);
+  if(veh&&q+Math.max(0,parseInt($("#nsBuf").value)||0)>veh.cap){toast((q+Math.max(0,parseInt($("#nsBuf").value)||0))+" cases is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
   const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
-  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:Math.max(0,parseInt($("#nsBuf").value)||0)}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":"Driver A",via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:Math.max(0,parseInt($("#nsBuf").value)||0)}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
   ORDERS.push(o);closeModal();
   toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
 }
@@ -931,6 +946,55 @@ function rtvPanel(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Returns to vendor (RTV)</h2><button class="btn btn-primary btn-sm" data-act="rtv-new" data-id="">${ic("plus",14)}New RTV</button></div><div class="tw"><table><thead><tr><th>RTV</th><th>Date</th><th>Vendor</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Vendor to give</th><th>Status</th><th class="num">Value</th><th></th></tr></thead><tbody>${RTVS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.supplier}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td>${r.res==="Credit"?"Credit note":"Replacement"}</td><td><span class="badge ${r.status==="Sent to vendor"?"b-warn":"b-ok"}">${r.status}</span></td><td class="num">${money(r.value)}</td><td>${r.status==="Sent to vendor"?`<button class="btn btn-ghost btn-sm" data-act="rtv-done" data-id="${r.id}">${r.res==="Credit"?"Record credit":"Receive replacement"}</button>`:""}</td></tr>`).join("")||`<tr><td colspan="10">No vendor returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Damaged or expired stock goes back to the supplier. A credit note lowers pending payables; replacement cases return to stock when received.</p></div>`;
 }
 
+/* ---------- vehicles ---------- */
+function trkForm(kind,id){
+  const own=VEHICLES.filter(v=>!v.maint);
+  openModal(kind==="po"?"Dispatch "+id:"Trucking to warehouse · "+id,`<p class="note" style="margin:0 0 10px">Record which vehicle is bringing the goods to the warehouse.</p>
+  <label class="f">Vehicle<select id="vhSel" data-chg="vhsel">${own.map(v=>`<option value="${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} cases, ${vehStatus(v).toLowerCase()})</option>`).join("")}<option value="hired">Hired or supplier truck</option></select></label>
+  <div id="vhHired" style="display:${own.length?"none":"block"}"><div class="grid2"><label class="f">Hauler or owner<input id="vhOwner" placeholder="Company name"></label><label class="f">Plate number<input id="vhPlate"></label><label class="f">Vehicle type<select id="vhType">${VTYPES.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Driver name<input id="vhDrv"></label></div></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trk-save" data-k="${kind}" data-id="${id}">${kind==="po"?"Dispatch":"Save and advance"}</button>`);
+}
+function trkSave(kind,id){
+  const sel=$("#vhSel").value, sh=kind==="ship"?SHIPMENTS.find(x=>x.id===id):null, p=kind==="po"?POS.find(x=>x.id===id):null;
+  const cases=(sh||p).lines.reduce((n,l)=>n+l.qty,0); let veh;
+  if(sel==="hired"){
+    const owner=$("#vhOwner").value.trim(), plate=$("#vhPlate").value.trim().toUpperCase(), drv=$("#vhDrv").value.trim();
+    if(!owner||!plate||!drv){toast("Enter the hauler, plate number and driver name.");return}
+    veh={plate,type:$("#vhType").value,driver:drv,owner};
+  }else{
+    const v=VEHICLES.find(x=>x.id===sel);
+    if(cases>v.cap){toast(cases+" cases is more than "+v.plate+" can carry ("+v.cap+"). Choose a larger vehicle or a hired truck.");return}
+    veh={plate:v.plate,type:v.type,driver:v.driver,owner:"Own"};
+  }
+  if(kind==="po")poDispatch(id,veh);else{sh.veh=veh;shipNext(id,true)}
+}
+function rVehicles(){
+  const st=VEHICLES.map(vehStatus), n=k=>st.filter(x=>x===k).length, trips=[];
+  ORDERS.filter(o=>o.via!=="Courier"&&o.status==="Out for Delivery").forEach(o=>{const v=vehOf(o);trips.push({ref:o.id,dir:"Outbound",plate:v?v.plate:"",type:v?v.type:"",driver:o.driver,owner:"Own",route:WH[o.wh]+" to "+CUSTNAME(o.cust),status:"Out for delivery"})});
+  SHIPMENTS.filter(x=>x.veh&&x.stage>=3).forEach(x=>trips.push({ref:x.id,dir:"Inbound",plate:x.veh.plate,type:x.veh.type,driver:x.veh.driver,owner:x.veh.owner,route:originOf(x.supplier)+" to "+WH[x.wh],status:x.stage===4?"Delivered":"In transit"}));
+  return `<div class="kpis">${kpi("truck","Own vehicles",VEHICLES.length,"")}${kpi("check","Available",n("Available"),"")}${kpi("pin","On route",n("On route"),"")}${kpi("alert","In maintenance",n("Maintenance"),"")}</div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary btn-sm" data-act="veh-new">${ic("plus",14)}Add vehicle</button></div>
+  <div class="panel"><h2>Own vehicles</h2><div class="tw"><table><thead><tr><th>Plate</th><th>Type</th><th class="num">Capacity</th><th>Driver</th><th>Status</th><th>Current trip</th><th></th></tr></thead><tbody>${VEHICLES.map((v,i)=>`<tr><td><b>${v.plate}</b></td><td>${v.type}</td><td class="num">${NUM.format(v.cap)} cases</td><td>${v.driver}</td><td><span class="badge ${vehBadge[st[i]]}">${st[i]}</span></td><td>${(trips.find(t=>t.plate===v.plate)||{}).ref||"None"}</td><td><button class="btn btn-ghost btn-sm" data-act="veh" data-id="${v.id}">View</button></td></tr>`).join("")}</tbody></table></div></div>
+  <div class="panel"><h2>Trips in progress</h2><div class="tw"><table><thead><tr><th>Trip</th><th>Direction</th><th>Vehicle</th><th>Driver</th><th>Route</th><th>Status</th></tr></thead><tbody>${trips.map(t=>`<tr><td><b>${t.ref}</b></td><td>${t.dir}</td><td>${t.plate||"Not set"}<div class="note" style="margin:0">${t.type}${t.owner!=="Own"?", "+t.owner:""}</div></td><td>${t.driver}</td><td>${t.route}</td><td>${t.status}</td></tr>`).join("")||`<tr><td colspan="6">No trips right now.</td></tr>`}</tbody></table></div></div>`;
+}
+function vehModal(id){
+  const v=VEHICLES.find(x=>x.id===id), s=vehStatus(v);
+  openModal(v.plate,`<div class="kv"><div><b>Type</b>${v.type}</div><div><b>Capacity</b>${NUM.format(v.cap)} cases</div><div><b>Assigned driver</b>${v.driver}</div><div><b>Status</b><span class="badge ${vehBadge[s]}">${s}</span></div></div><p class="note">Own vehicle. Hired and supplier trucks are entered per trip when goods are dispatched.</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s==="On route"?"":`<button class="btn btn-accent" data-act="veh-maint" data-id="${v.id}">${v.maint?"Back in service":"Send to maintenance"}</button>`}`);
+}
+function vehMaint(id){const v=VEHICLES.find(x=>x.id===id);v.maint=!v.maint;closeModal();toast(v.plate+(v.maint?" is in maintenance and can't be assigned.":" is back in service."));renderPage()}
+function vehNew(){
+  openModal("Add vehicle",`<div class="grid2"><label class="f">Plate number<input id="vnPlate" placeholder="ABC 1234"></label><label class="f">Vehicle type<select id="vnType">${VTYPES.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Capacity (cases)<input id="vnCap" type="number" min="1" value="500"></label><label class="f">Assigned driver<input id="vnDrv"></label></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="veh-create">Save vehicle</button>`);
+}
+function vehCreate(){
+  const plate=$("#vnPlate").value.trim().toUpperCase(), drv=$("#vnDrv").value.trim(), cap=parseInt($("#vnCap").value)||0;
+  if(!plate||!drv||cap<1){toast("Enter the plate number, driver and capacity.");return}
+  if(VEHICLES.some(v=>v.plate===plate)){toast(plate+" is already in the vehicle list.");return}
+  if(VEHICLES.some(v=>v.driver.toLowerCase()===drv.toLowerCase())){toast(drv+" is already assigned to another vehicle.");return}
+  VEHICLES.push({id:"VH-"+(++vhSeq),plate,type:$("#vnType").value,cap,driver:drv,maint:false});closeModal();toast(plate+" added.");renderPage();
+}
+
 /* ---------- purchasing ---------- */
 const kindTag=n=>`<span class="badge ${SUP(n)&&SUP(n).kind==="Local"?"b-mute":"b-info"}">${SUP(n)?(SUP(n).kind==="Local"?"Local":"International"):"Service"}</span>`;
 const supBal=n=>BILLS.filter(b=>b.sup===n).reduce((x,b)=>x+billBal(b),0);
@@ -957,9 +1021,9 @@ function poModal(id){
    ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
 }
-function poDispatch(id){
+function poDispatch(id,veh){
   const p=POS.find(x=>x.id===id), n=++shpSeq, d=addDays(0);
-  const sh={id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:"Direct delivery",eta:p.expected<d?d:p.expected,stage:3,wh:p.wh,costs:{freight:0,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true};
+  const sh={id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:"Direct delivery",eta:p.expected<d?d:p.expected,stage:3,wh:p.wh,costs:{freight:0,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,veh};
   sh.pay={due:addDays(p.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;
   closeModal();toast(p.id+" dispatched by "+p.sup+". "+sh.id+" is on its way to "+WH[p.wh]+".");renderPage();
 }
@@ -1150,7 +1214,7 @@ function renderDriver(){
   $("#drvDate").textContent=dfmt(TODAY);$("#drvTitle").textContent=dtab==="todo"?"Today's route":"Delivered today";
   $$(".tabbar button").forEach(b=>b.classList.toggle("active",b.dataset.id===dtab));
   const list=ORDERS.filter(o=>o.via!=="Courier"&&(dtab==="todo"?o.status==="Out for Delivery":(o.status==="Delivered"&&o.delivered&&dayDiff(TODAY,o.delivered)<=0)));
-  $("#drvBody").innerHTML=list.length?list.map(o=>`<button class="dcard" data-act="stop" data-id="${o.id}"><div class="r"><b>${CUSTNAME(o.cust)}</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div style="font-size:13px;color:var(--muted)">${o.id} &middot; ${o.lines.reduce((n,l)=>n+l.qty,0)} cases &middot; ${money(orderTotal(o))}</div><div style="font-size:13px;display:flex;gap:6px;align-items:center">${ic("pin",14)}Address Line, City A</div></button>`).join(""):`<div style="text-align:center;color:var(--muted);padding:40px 10px">${dtab==="todo"?"No stops left. Dispatch an order from the Console and it will appear here.":"Nothing delivered yet today."}</div>`;
+  $("#drvBody").innerHTML=list.length?list.map(o=>`<button class="dcard" data-act="stop" data-id="${o.id}"><div class="r"><b>${CUSTNAME(o.cust)}</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div style="font-size:13px;color:var(--muted)">${o.id} &middot; ${o.lines.reduce((n,l)=>n+l.qty,0)} cases &middot; ${money(orderTotal(o))}${vehOf(o)?" &middot; "+vehOf(o).plate:""}</div><div style="font-size:13px;display:flex;gap:6px;align-items:center">${ic("pin",14)}Address Line, City A</div></button>`).join(""):`<div style="text-align:center;color:var(--muted);padding:40px 10px">${dtab==="todo"?"No stops left. Dispatch an order from the Console and it will appear here.":"Nothing delivered yet today."}</div>`;
 }
 function openStop(id){
   const o=ORDERS.find(x=>x.id===id);dsel=id;podPhoto=false;podSig=false;
@@ -1207,7 +1271,7 @@ document.addEventListener("click",e=>{
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
-  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")poDispatch(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
+  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
@@ -1215,6 +1279,7 @@ $("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset()
 document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(!t)return;const c=t.dataset.chg;
   if(c==="alloc")shipModal(t.dataset.id,t.value);
   else if(c==="posup")poNew(t.value);
+  else if(c==="vhsel"){$("#vhHired").style.display=t.value==="hired"?"block":"none"}
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
   else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
   else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
