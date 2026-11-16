@@ -978,9 +978,12 @@ const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via
 function soNew(){
   openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Item<select id="nsItem" data-chg="uitem" data-id="nsU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Quantity<input id="nsQty" type="number" min="0" step="any" value="20"></label><label class="f">Unit<select id="nsU">${unitOpts(ITEMS[0])}</select></label>
-  <label class="f">Extra loaded for replacements<input id="nsBuf" type="number" min="0" step="any" value="0"></label><label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} units)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div>`,
+  <label class="f">Extra loaded for replacements<input id="nsBuf" type="number" min="0" step="any" value="0"></label><label class="f">Ship from<select id="nsWh" data-chg="nsstock"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} units)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div><p class="note" id="nsStock" style="margin-top:8px"></p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
+  nsStockUpd();
 }
+function nsStockUpd(){const e=$("#nsStock");if(!e)return;const i=I($("#nsItem").value),w=$("#nsWh").value,o=w==="A"?"B":"A";
+  e.innerHTML=`<b>${WH[w]}:</b> ${fq(i.sku,sellable(i,w))} available to sell${i.stock[w]>sellable(i,w)?` (${fq(i.sku,i.stock[w])} on hand, the rest is expired)`:""}. ${WH[o]}: ${fq(i.sku,sellable(i,o))}.`}
 function soCreate(){
   const q=qtyOf("nsItem","nsQty","nsU",0.0001), bf=qtyOf("nsItem","nsBuf","nsU",0), sku=$("#nsItem").value, cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel);
   if(veh&&q+bf>veh.cap){toast(NUM.format(Math.round((q+bf)*100)/100)+" units is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
@@ -1458,7 +1461,8 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
   else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
   else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
-  else if(c==="uitem"){const e=$("#"+t.dataset.id);if(e)e.innerHTML=unitOpts(I(t.value))}
+  else if(c==="uitem"){const e=$("#"+t.dataset.id);if(e)e.innerHTML=unitOpts(I(t.value));nsStockUpd()}
+  else if(c==="nsstock")nsStockUpd()
   else if(c==="poitem"){const it=I(t.value);if(it)$("#poU"+t.dataset.id).innerHTML=unitOpts(it);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
   else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
   else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
