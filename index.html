@@ -160,8 +160,8 @@ label.f input,label.f select{display:block;width:100%;margin-top:4px;min-height:
 .filters button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .tw{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 9px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:11px 9px;border-bottom:1px solid var(--border);white-space:nowrap}
 tr:last-child td{border-bottom:0}
 td.num,th.num{text-align:right}
 .bars{display:grid;gap:10px}
@@ -283,7 +283,7 @@ td.num,th.num{text-align:right}
     </div>
   </div></section>
   <section class="sec" id="p-catalog" style="padding-top:0"><div class="in">
-    <h2 class="display">Catalog</h2><p class="lead">Prices are per case. Availability updates as stock arrives from port and leaves for delivery.</p>
+    <h2 class="display">Catalog</h2><p class="lead">Prices are per stock unit (case, box, pallet and so on). Availability updates as stock arrives from port and leaves for delivery.</p>
     <div class="toolbar"><input type="search" data-q="cat" placeholder="Search products" aria-label="Search products"><select id="pcat" data-chg="catsel" aria-label="Category" style="min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff"></select></div>
     <div class="prods" id="prods"></div><div class="pager" id="pmore"></div>
   </div></section>
@@ -408,10 +408,32 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 /* ---------- sample data (generic, relative to today) ---------- */
 function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const R=rng(20261127), ri=(a,b)=>a+Math.floor(R()*(b-a+1));
+const UOMS=[{n:"Case",s:"case",p:"cases"},{n:"Box",s:"box",p:"boxes"},{n:"Pack",s:"pack",p:"packs"},{n:"Pallet",s:"pallet",p:"pallets"},{n:"Piece",s:"pc",p:"pcs"},{n:"Dozen",s:"dozen",p:"dozen"},{n:"Sack",s:"sack",p:"sacks"},{n:"Kg",s:"kg",p:"kg"},{n:"Liter",s:"L",p:"L"}];
+const uom=n=>UOMS.find(x=>x.n===n)||{n,s:String(n).toLowerCase(),p:String(n).toLowerCase()};
+const rnd=q=>Math.round(q*1e6)/1e6;
+const ul=(n,q)=>Math.abs(q-1)<1e-9?uom(n).s:uom(n).p;
+const unitsOf=i=>[i.uom,...i.alts.map(a=>a.u)];
+const perOf=(i,u)=>u===i.uom?1:(i.alts.find(a=>a.u===u)||{per:1}).per;
+const toStock=(i,u,q)=>rnd(q/perOf(i,u));
+const unitOpts=(i,sel)=>unitsOf(i).map(u=>`<option ${u===(sel||i.uom)?"selected":""}>${u}</option>`).join("");
+function fq(sku,q){
+  const i=ITEMS.find(x=>x.sku===sku);q=rnd(q);if(!i)return NUM.format(q);
+  const a=i.alts[0];
+  if(a&&Math.abs(q-Math.round(q))>1e-6){
+    let w=Math.floor(q+1e-9),r=Math.round((q-w)*a.per);if(r>=a.per){w++;r=0}
+    return [w?NUM.format(w)+" "+ul(i.uom,w):"",r?NUM.format(r)+" "+ul(a.u,r):""].filter(Boolean).join(" ")||"0 "+uom(i.uom).p;
+  }
+  return NUM.format(Math.round(q*100)/100)+" "+ul(i.uom,q);
+}
+function fqs(lines){const us=[...new Set(lines.map(l=>(ITEMS.find(x=>x.sku===l.sku)||{}).uom))],t=lines.reduce((n,l)=>n+l.qty,0);return us.length===1?fq(lines[0].sku,t):NUM.format(rnd(t))+" units"}
+function uSel(id,sku){const i=ITEMS.find(x=>x.sku===sku)||ITEMS[0];return `<select id="${id}">${unitOpts(i)}</select>`}
+function uRefresh(selId,itemId){const i=I($("#"+itemId).value),el=$("#"+selId);if(el)el.innerHTML=unitOpts(i)}
+const qtyOf=(itemId,qId,uId,min)=>{const i=I($("#"+itemId).value),v=parseFloat($("#"+qId).value)||0,u=$("#"+uId).value;return toStock(i,u,Math.max(min,v))};
 const CATS={Beverages:1,"Canned Goods":1,Snacks:1,"Dry Goods":1,Household:0,"Personal Care":0,Packaging:0};
 const SHELF={Beverages:240,"Canned Goods":540,Snacks:180,"Dry Goods":360};
 const Bt=(lot,d,a,b)=>({lot,exp:d===null?null:addDays(d),q:{A:a,B:b}});
-function mk(sku,name,cat,cost,price,reorder,batches){const it={sku,name,cat,food:!!CATS[cat],shelf:SHELF[cat]||0,cost,price,reorder,batches};Object.defineProperty(it,"stock",{get(){return{A:it.batches.reduce((n,b)=>n+b.q.A,0),B:it.batches.reduce((n,b)=>n+b.q.B,0)}}});return it}
+function mk(sku,name,cat,cost,price,reorder,batches){const pm=/\((\d+) pcs\/case\)/.exec(name),pl=/pallet pack/.test(name);
+  const it={sku,name,cat,food:!!CATS[cat],shelf:SHELF[cat]||0,cost,price,reorder,batches,uom:pl?"Pallet":"Case",alts:pl?[{u:"Case",per:40}]:pm?[{u:"Piece",per:+pm[1]}]:[]};Object.defineProperty(it,"stock",{get(){return{A:it.batches.reduce((n,b)=>n+b.q.A,0),B:it.batches.reduce((n,b)=>n+b.q.B,0)}}});return it}
 const ITEMS=[
  mk("SKU-1001","Product A1 (24 pcs/case)","Beverages",340,480,120,[Bt("L2407-1001",34,200,60),Bt("L2411-1001",170,320,150)]),
  mk("SKU-1002","Product A2 (24 pcs/case)","Beverages",370,520,100,[Bt("L2409-1002",12,40,20),Bt("L2501-1002",200,260,120)]),
@@ -437,8 +459,8 @@ const expired=b=>!!b.exp&&b.exp<TODAY;
 const sellable=(i,w)=>i.batches.filter(b=>!expired(b)).reduce((n,b)=>n+b.q[w],0);
 const totalAvail=i=>sellable(i,"A")+sellable(i,"B");
 const expMs=b=>b.exp?b.exp.getTime():9e15;
-function takeStock(i,w,q,any){let left=q;const used=[];i.batches.filter(b=>b.q[w]>0&&(any||!expired(b))).sort((a,b)=>expMs(a)-expMs(b)).forEach(b=>{if(!left)return;const t=Math.min(left,b.q[w]);b.q[w]-=t;left-=t;used.push({lot:b.lot,q:t})});return used}
-function addStock(i,w,q,lot,exp){let b=i.batches.find(x=>x.lot===lot);if(!b){b={lot,exp,q:{A:0,B:0}};i.batches.push(b)}b.q[w]+=q}
+function takeStock(i,w,q,any){let left=q;const used=[];i.batches.filter(b=>b.q[w]>1e-9&&(any||!expired(b))).sort((a,b)=>expMs(a)-expMs(b)).forEach(b=>{if(left<1e-9)return;const t=Math.min(left,b.q[w]);b.q[w]=rnd(b.q[w]-t);left=rnd(left-t);used.push({lot:b.lot,q:t})});return used}
+function addStock(i,w,q,lot,exp){let b=i.batches.find(x=>x.lot===lot);if(!b){b={lot,exp,q:{A:0,B:0}};i.batches.push(b)}b.q[w]=rnd(b.q[w]+q)}
 const nextExp=i=>{const b=i.batches.filter(b=>b.exp&&b.q.A+b.q.B>0).sort((a,b)=>a.exp-b.exp)[0];return b?b.exp:null};
 const expQty=(i,days)=>i.batches.filter(b=>b.exp&&dayDiff(b.exp,TODAY)>=0&&dayDiff(b.exp,TODAY)<=days).reduce((n,b)=>n+b.q.A+b.q.B,0);
 const expiredQty=i=>i.batches.filter(expired).reduce((n,b)=>n+b.q.A+b.q.B,0);
@@ -625,14 +647,14 @@ function renderCatalog(){
   const cq=(FIL.catQ||"").toLowerCase(),cc=FIL.catC||"All categories",pc=$("#pcat");if(!pc.options.length)pc.innerHTML=["All categories",...Object.keys(CATS)].map(c=>`<option>${c}</option>`).join("");
   const crows=ITEMS.filter(i=>(cc==="All categories"||i.cat===cc)&&(!cq||i.name.toLowerCase().includes(cq)||i.sku.toLowerCase().includes(cq))),shown=Math.min(crows.length,FIL.catN||12);
   $("#pLines").textContent=ITEMS.length;$("#pmore").innerHTML=`<span>Showing ${shown} of ${crows.length} products</span>${shown<crows.length?`<button class="btn btn-ghost btn-sm" data-act="cat-more">Show more</button>`:""}`;
-  $("#prods").innerHTML=crows.slice(0,shown).map(i=>`<div class="prod"><h3>${i.name}</h3><div class="meta">${i.sku} &middot; ${i.cat}</div><div class="pr">${money(i.price)} <span class="meta">/ case</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
+  $("#prods").innerHTML=crows.slice(0,shown).map(i=>`<div class="prod"><h3>${i.name}</h3><div class="meta">${i.sku} &middot; ${i.cat}</div><div class="pr">${money(i.price)} <span class="meta">/ ${uom(i.uom).s}</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
   $("#cartN").textContent=Object.values(cart).reduce((a,b)=>a+b,0);
 }
 function openCart(){
   const keys=Object.keys(cart);
   if(!keys.length){openModal("Your order list",`<p>Your list is empty. Add products from the catalog.</p>`);return}
   const total=keys.reduce((n,k)=>n+cart[k]*I(k).price,0);
-  openModal("Your order list",`<div class="tw"><table><thead><tr><th>Product</th><th class="num">Cases</th><th class="num">Amount</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${I(k).name}</td><td class="num">${cart[k]}</td><td class="num">${money(cart[k]*I(k).price)}</td></tr>`).join("")}</tbody></table></div><div class="sum"><div class="tot"><span>Estimated total</span><span>${money(total)}</span></div></div><label class="f" style="margin-top:14px">Payment terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>`,
+  openModal("Your order list",`<div class="tw"><table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${I(k).name}</td><td class="num">${fq(k,cart[k])}</td><td class="num">${money(cart[k]*I(k).price)}</td></tr>`).join("")}</tbody></table></div><div class="sum"><div class="tot"><span>Estimated total</span><span>${money(total)}</span></div></div><label class="f" style="margin-top:14px">Payment terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>`,
   `<button class="btn btn-ghost" data-act="cart-clear">Clear list</button><button class="btn btn-accent" data-act="cart-submit">Send order request</button>`);
 }
 
@@ -659,8 +681,8 @@ function activity(){
   ORDERS.filter(o=>o.status==="Out for Delivery").forEach(o=>ev.push({d:o.date,t:o.id+" out for delivery to "+CUSTNAME(o.cust)}));
   ORDERS.filter(o=>o.status==="Delivered"&&o.delivered).forEach(o=>ev.push({d:o.delivered,t:o.id+" delivered to "+CUSTNAME(o.cust)}));
   INVOICES.forEach(i=>i.payments.forEach(p=>ev.push({d:p.date,t:"Payment of "+money(p.amt)+" on "+i.id+" ("+p.method+")"})));
-  RETURNS.forEach(r=>ev.push({d:r.date,t:r.id+": "+r.qty+" cases returned by "+CUSTNAME(r.cust)}));
-  DAMAGES.forEach(d=>ev.push({d:d.date,t:d.id+" damage report, "+d.qty+" cases of "+I(d.sku).name.split(" (")[0]}));
+  RETURNS.forEach(r=>ev.push({d:r.date,t:r.id+": "+fq(r.sku,r.qty)+" returned by "+CUSTNAME(r.cust)}));
+  DAMAGES.forEach(d=>ev.push({d:d.date,t:d.id+" damage report, "+fq(d.sku,d.qty)+" of "+I(d.sku).name.split(" (")[0]}));
   const ago=d=>{const n=dayDiff(TODAY,d);return n<=0?"Today":n===1?"Yesterday":n+" days ago"};
   return ev.filter(e=>e.d<=TODAY).sort((a,b)=>b.d-a.d).slice(0,6).map(e=>`<li><span class="dot"></span><div>${e.t}<small>${ago(e.d)}</small></div></li>`).join("");
 }
@@ -668,15 +690,15 @@ function rDash(){
   const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), val=ITEMS.reduce((n,i)=>n+totalStock(i)*i.cost,0);
   const inb=SHIPMENTS.filter(s=>s.stage<4).length, openSO=ORDERS.filter(o=>o.status!=="Delivered").length, ofd=ORDERS.filter(o=>o.status==="Out for Delivery").length;
   const uoAll=unitsOut(30), uo=uoAll.slice().sort((a,b)=>b.q-a.q).slice(0,6), mx=Math.max(1,...uo.map(x=>x.q));
-  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" cases on hand")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}${kpi("alert","Near expiry",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Within 30 days")}</div>
+  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" units on hand")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}${kpi("alert","Near expiry",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" units","Within 30 days")}</div>
   <div class="pipe">
    <button data-act="page" data-id="inbound"><div class="st">1 Port</div><div class="n">${inb}</div><div class="t">Shipments inbound</div><div class="d">Sea, port, customs, trucking</div></button>
-   <button data-act="page" data-id="inventory"><div class="st">2 Warehouse</div><div class="n">${NUM.format(units)}</div><div class="t">Cases in stock</div><div class="d">${ITEMS.filter(i=>stockState(i)[0]!=="OK").length} items at or below reorder</div></button>
-   <button data-act="page" data-id="sales"><div class="st">3 Sales</div><div class="n">${NUM.format(uoAll.reduce((n,x)=>n+x.q,0))}</div><div class="t">Cases out (30 days)</div><div class="d">Counted per item</div></button>
+   <button data-act="page" data-id="inventory"><div class="st">2 Warehouse</div><div class="n">${NUM.format(units)}</div><div class="t">Units in stock</div><div class="d">${ITEMS.filter(i=>stockState(i)[0]!=="OK").length} items at or below reorder</div></button>
+   <button data-act="page" data-id="sales"><div class="st">3 Sales</div><div class="n">${NUM.format(uoAll.reduce((n,x)=>n+x.q,0))}</div><div class="t">Units out (30 days)</div><div class="d">Counted per item</div></button>
    <button data-act="page" data-id="sales"><div class="st">4 Delivery</div><div class="n">${ofd}</div><div class="t">Out for delivery</div><div class="d">${openSO-ofd} waiting to dispatch</div></button>
    <button data-act="page" data-id="collections"><div class="st">5 Collections</div><div class="n">${money(outstanding())}</div><div class="t">To collect</div><div class="d">15 to 60 day terms</div></button>
   </div>
-  <div class="two"><div class="panel"><h2>Cases out by item (last 30 days)</h2><div class="bars">${uo.map(x=>`<div class="bar"><span>${I(x.sku).name.split(" (")[0]}</span><div class="tr"><div class="fl" style="width:${Math.round(x.q/mx*100)}%"></div></div><b>${NUM.format(x.q)}</b></div>`).join("")}</div></div>
+  <div class="two"><div class="panel"><h2>Units out by item (last 30 days)</h2><div class="bars">${uo.map(x=>`<div class="bar"><span>${I(x.sku).name.split(" (")[0]}</span><div class="tr"><div class="fl" style="width:${Math.round(x.q/mx*100)}%"></div></div><b>${NUM.format(x.q)}</b></div>`).join("")}</div></div>
   <div class="panel"><h2>Recent activity</h2><ul class="feed">${activity()}</ul></div></div>`;
 }
 function rInbound(){
@@ -692,7 +714,7 @@ function shipModal(id,m){
   openModal(s.id+" · "+(s.container||(s.sea?"Domestic sea freight":"Local delivery")),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}${s.sea?`<div><b>Shipping line</b>${s.sea.line}</div><div><b>Waybill or B/L</b>${s.sea.bl||"Not entered"}</div><div><b>Origin port</b>${s.sea.origin}</div>`:""}${s.veh1?`<div><b>Truck to port</b>${s.veh1.plate}, ${s.veh1.owner==="Own"?"own":s.veh1.owner}</div>`:""}${s.veh?`<div><b>Vehicle</b>${s.veh.plate}, ${s.veh.type}</div><div><b>Driver</b>${s.veh.driver}${s.veh.owner==="Own"?" (own)":", "+s.veh.owner}</div>`:""}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
    <ul class="tl">${stg(s).map((st,k)=>s.local&&!s.sea&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
    ${s.local&&!s.sea?"":`<label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>`}
-   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
+   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / unit</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${fq(r.l.sku,r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
    <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${s.local&&!s.sea?"":Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
    <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4&&!s.local?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
@@ -708,16 +730,16 @@ function shipNext(id,force){
 }
 function rSales(){
   const f=FIL.sales, rows=ORDERS.filter(o=>f==="All"||o.status===f).slice().sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), uo=unitsOut(30);
-  const perItem=`<div class="panel"><h2>Cases out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${NUM.format(x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))}</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
+  const perItem=`<div class="panel"><h2>Units out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${fq(x.sku,x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))} units</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
   const orders=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("sales",["All","Credit Hold","Pending","Packed","Out for Delivery","Delivered"])}<button class="btn btn-primary btn-sm" data-act="so-new">${ic("plus",14)}New sales order</button></div>
-  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Cases</th><th class="num">Amount</th><th>Terms</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${o.lines.reduce((n,l)=>n+l.qty,0)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td>${o.via==="Courier"?"Courier":"Own truck"}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="10">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
-  return filt("salesTab",["Orders","Cases out per item"])+(FIL.salesTab==="Cases out per item"?perItem:orders);
+  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Qty</th><th class="num">Amount</th><th>Terms</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${fqs(o.lines)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td>${o.via==="Courier"?"Courier":"Own truck"}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="10">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
+  return filt("salesTab",["Orders","Units out per item"])+(FIL.salesTab==="Units out per item"?perItem:orders);
 }
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
 function soModal(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status], inv=invOf(o.id);
   openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div>${o.rel?`<div style="grid-column:1/-1"><b>On delivery</b>${o.rel}</div>`:""}${o.replaces?`<div><b>Replacement for</b>${o.replaces} (no charge)</div>`:""}<div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+(vehOf(o)?vehOf(o).plate+", "+vehOf(o).type+", ":"")+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
-  <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}${l.buf?` <span class="note">(+${l.buf} spare)</span>`:""}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
+  <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${fq(l.sku,l.qty)}${l.buf?` <span class="note">(+${fq(l.sku,l.buf)} spare)</span>`:""}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
   <div class="sum"><div class="tot"><span>Order total</span><span>${money(orderTotal(o))}</span></div></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${o.status==="Delivered"?`<button class="btn btn-ghost" data-act="ret-new" data-id="${o.id}">Process return</button>`:""}${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${nextLabel(o,nx)}</button>`:""}`);
 }
@@ -764,6 +786,37 @@ function pay(id){
   i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:$("#payMethod").value,ref:$("#payRef").value||"No reference"});
   closeModal();toast(money(a)+" recorded on "+i.id+(i.amount-i.paid<=0?". Invoice fully paid.":". Remaining "+money(i.amount-i.paid)+"."));renderPage();
 }
+function uomPanel(){
+  const used=u=>ITEMS.filter(i=>i.uom===u).length, alt=u=>ITEMS.filter(i=>i.alts.some(a=>a.u===u)).length;
+  return `<div class="panel" style="max-width:640px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Units of measure</h2><button class="btn btn-primary btn-sm" data-act="uom-new">${ic("plus",14)}Add unit</button></div><div class="tw"><table><thead><tr><th>Unit</th><th>Shown as</th><th class="num">Items stocked in it</th><th class="num">Items also sold in it</th><th></th></tr></thead><tbody>${UOMS.map(u=>`<tr><td><b>${esc(u.n)}</b></td><td>${esc(u.s)} / ${esc(u.p)}</td><td class="num">${used(u.n)}</td><td class="num">${alt(u.n)}</td><td><button class="btn btn-ghost btn-sm" data-act="uom-edit" data-id="${esc(u.n)}">Edit</button></td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">Each item has one stock unit, and can also be bought or sold in another unit (for example stocked in cases, sold in pieces). Set this per item in Inventory.</p></div>`;
+}
+function uomForm(old){
+  const u=old?uom(old):{n:"",s:"",p:""}, n=old?ITEMS.filter(i=>i.uom===old||i.alts.some(a=>a.u===old)).length:0;
+  openModal(old?"Edit unit":"Add unit",`<label class="f">Unit name<input id="umName" value="${esc(u.n)}" placeholder="e.g. Carton"></label><div class="grid2"><label class="f">Shown for 1<input id="umS" value="${esc(u.s)}" placeholder="carton"></label><label class="f">Shown for more than 1<input id="umP" value="${esc(u.p)}" placeholder="cartons"></label></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button>${old&&!n?`<button class="btn btn-ghost" data-act="uom-del" data-id="${esc(old)}">Delete</button>`:""}<button class="btn btn-accent" data-act="uom-save" data-id="${old?esc(old):""}">Save unit</button>`);
+}
+function uomSave(old){
+  const n=$("#umName").value.trim(), sg=$("#umS").value.trim()||n.toLowerCase(), pl=$("#umP").value.trim()||sg+"s";
+  if(!n){toast("Enter the unit name.");return}
+  if(UOMS.some(x=>x.n.toLowerCase()===n.toLowerCase()&&x.n!==old)){toast(n+" already exists.");return}
+  if(!old)UOMS.push({n,s:sg,p:pl});
+  else{const u=UOMS.find(x=>x.n===old);u.n=n;u.s=sg;u.p=pl;ITEMS.forEach(i=>{if(i.uom===old)i.uom=n;i.alts.forEach(a=>{if(a.u===old)a.u=n})})}
+  closeModal();toast(n+(old?" saved.":" added."));renderPage();
+}
+function uomDel(old){
+  if(ITEMS.some(i=>i.uom===old||i.alts.some(a=>a.u===old))){toast("Change the items using "+old+" first.");return}
+  UOMS.splice(UOMS.findIndex(x=>x.n===old),1);closeModal();toast(old+" deleted.");renderPage();
+}
+function itemUnits(sku){
+  const i=I(sku),a=i.alts[0]||{u:"",per:12};
+  openModal("Units for "+i.name,`<p class="note" style="margin:0 0 10px">Stock is kept in <b>${i.uom}</b>. It can't be changed while the item has stock or history.</p><div class="grid2"><label class="f">Also sold in<select id="iuAlt"><option value="">None</option>${UOMS.filter(u=>u.n!==i.uom).map(u=>`<option ${u.n===a.u?"selected":""}>${u.n}</option>`).join("")}</select></label><label class="f">How many in 1 ${uom(i.uom).s}<input id="iuPer" type="number" min="0" step="any" value="${a.per}"></label></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="item-units-save" data-id="${sku}">Save units</button>`);
+}
+function itemUnitsSave(sku){
+  const i=I(sku),al=$("#iuAlt").value,per=parseFloat($("#iuPer").value)||0;
+  if(al&&per<=0){toast("Enter how many "+uom(al).p+" are in one "+uom(i.uom).s+".");return}
+  i.alts=al?[{u:al,per}]:[];closeModal();toast("Units saved for "+i.name+".");renderPage();
+}
 function catPanel(){
   return `<div class="panel" style="max-width:640px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Item categories</h2><button class="btn btn-primary btn-sm" data-act="cat-new">${ic("plus",14)}Add category</button></div><div class="tw"><table><thead><tr><th>Category</th><th class="num">Items</th><th>Expiry tracking</th><th class="num">Shelf life</th><th></th></tr></thead><tbody>${Object.keys(CATS).map(c=>`<tr><td><b>${esc(c)}</b></td><td class="num">${ITEMS.filter(i=>i.cat===c).length}</td><td>${CATS[c]?"Yes":"No"}</td><td class="num">${CATS[c]?SHELF[c]+" days":"None"}</td><td><button class="btn btn-ghost btn-sm" data-act="cat-edit" data-id="${esc(c)}">Edit</button></td></tr>`).join("")}</tbody></table></div></div>`;
 }
@@ -800,7 +853,7 @@ function rSettings(){
   <label class="f">Default credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
   <label class="f">Warehouse A name<input value="Warehouse A"></label><label class="f">Warehouse B name<input value="Warehouse B"></label></div>
   <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
-  <button class="btn btn-primary" data-act="save">Save settings</button></div>${catPanel()}`;
+  <button class="btn btn-primary" data-act="save">Save settings</button></div>${catPanel()}${uomPanel()}`;
 }
 function rUsers(){
   const U=[["Admin User","admin@companya.example","Owner"],["Sample User 1","user1@companya.example","Warehouse Manager"],["Sample User 2","user2@companya.example","Sales"],["Sample User 3","user3@companya.example","Collections"],["Driver A","drivera@companya.example","Driver"]];
@@ -808,7 +861,7 @@ function rUsers(){
 }
 function showAlerts(){
   const low=ITEMS.filter(i=>stockState(i)[0]!=="OK").slice(0,6), exp=ITEMS.filter(i=>expQty(i,30)>0||expiredQty(i)>0).sort((a,b)=>nextExp(a)-nextExp(b)).slice(0,5), od=INVOICES.filter(i=>invStatus(i)==="Overdue"), arr=SHIPMENTS.filter(s=>s.stage<4&&dayDiff(s.eta,TODAY)<=2);
-  openModal("Notifications",`<ul class="feed">${ORDERS.filter(o=>o.status==="Credit Hold").map(o=>`<li><span class="dot" style="background:var(--bad)"></span><div>${o.id} for ${CUSTNAME(o.cust)} is on credit hold (${money(orderTotal(o))})<small>Credit control</small></div></li>`).join("")}${exp.map(i=>`<li><span class="dot" style="background:var(--${expiredQty(i)>0?"bad":"warn"})"></span><div>${i.name}: ${expiredQty(i)>0?expiredQty(i)+" cases expired":expQty(i,30)+" cases expire within 30 days"}<small>Expiry watch</small></div></li>`).join("")}${low.map(i=>`<li><span class="dot" style="background:var(--warn)"></span><div>${i.name} is at ${totalStock(i)} cases (reorder at ${i.reorder})<small>Stock alert</small></div></li>`).join("")}${od.map(i=>`<li><span class="dot" style="background:var(--bad)"></span><div>${i.id} for ${CUSTNAME(i.cust)} is ${-dayDiff(i.due,TODAY)} days overdue (${money(i.amount-i.paid)})<small>Collections</small></div></li>`).join("")}${arr.map(s=>`<li><span class="dot"></span><div>${s.id} expected ${s.eta<=TODAY?"today":"in "+dayDiff(s.eta,TODAY)+" days"} at ${WH[s.wh]}<small>Inbound</small></div></li>`).join("")}</ul>`);
+  openModal("Notifications",`<ul class="feed">${ORDERS.filter(o=>o.status==="Credit Hold").map(o=>`<li><span class="dot" style="background:var(--bad)"></span><div>${o.id} for ${CUSTNAME(o.cust)} is on credit hold (${money(orderTotal(o))})<small>Credit control</small></div></li>`).join("")}${exp.map(i=>`<li><span class="dot" style="background:var(--${expiredQty(i)>0?"bad":"warn"})"></span><div>${i.name}: ${expiredQty(i)>0?fq(i.sku,expiredQty(i))+" expired":fq(i.sku,expQty(i,30))+" expire within 30 days"}<small>Expiry watch</small></div></li>`).join("")}${low.map(i=>`<li><span class="dot" style="background:var(--warn)"></span><div>${i.name} is at ${fq(i.sku,totalStock(i))} (reorder at ${i.reorder})<small>Stock alert</small></div></li>`).join("")}${od.map(i=>`<li><span class="dot" style="background:var(--bad)"></span><div>${i.id} for ${CUSTNAME(i.cust)} is ${-dayDiff(i.due,TODAY)} days overdue (${money(i.amount-i.paid)})<small>Collections</small></div></li>`).join("")}${arr.map(s=>`<li><span class="dot"></span><div>${s.id} expected ${s.eta<=TODAY?"today":"in "+dayDiff(s.eta,TODAY)+" days"} at ${WH[s.wh]}<small>Inbound</small></div></li>`).join("")}</ul>`);
 }
 
 
@@ -826,11 +879,11 @@ function remind(k){
   toast(due.length?"Reminder sent to "+CUSTS[k].name+" for "+due.length+" invoice"+(due.length>1?"s":"")+" ("+money(sum)+").":CUSTS[k].name+" has nothing overdue or due soon.");
 }
 function trfPanel(){
-  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Warehouse transfers</h2><button class="btn btn-primary btn-sm" data-act="trf-new">${ic("plus",14)}New transfer</button></div><div class="tw"><table><thead><tr><th>Transfer</th><th>Item</th><th class="num">Cases</th><th>From</th><th>To</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody>${TRANSFERS.slice().reverse().map(t=>`<tr><td><b>${t.id}</b></td><td>${I(t.sku).name}</td><td class="num">${t.qty}</td><td>${WH[t.from]}</td><td>${WH[t.to]}</td><td>${dfmt(t.date)}</td><td><span class="badge ${t.status==="Received"?"b-ok":"b-warn"}">${t.status}</span></td><td>${t.status==="In Transit"?`<button class="btn btn-ghost btn-sm" data-act="trf-recv" data-id="${t.id}">Receive</button>`:""}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">Stock leaves the source warehouse when the transfer is created and counts at the destination once it is received.</p></div>`;
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Warehouse transfers</h2><button class="btn btn-primary btn-sm" data-act="trf-new">${ic("plus",14)}New transfer</button></div><div class="tw"><table><thead><tr><th>Transfer</th><th>Item</th><th class="num">Qty</th><th>From</th><th>To</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody>${TRANSFERS.slice().reverse().map(t=>`<tr><td><b>${t.id}</b></td><td>${I(t.sku).name}</td><td class="num">${fq(t.sku,t.qty)}</td><td>${WH[t.from]}</td><td>${WH[t.to]}</td><td>${dfmt(t.date)}</td><td><span class="badge ${t.status==="Received"?"b-ok":"b-warn"}">${t.status}</span></td><td>${t.status==="In Transit"?`<button class="btn btn-ghost btn-sm" data-act="trf-recv" data-id="${t.id}">Receive</button>`:""}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">Stock leaves the source warehouse when the transfer is created and counts at the destination once it is received.</p></div>`;
 }
 function trfNew(){
-  openModal("New warehouse transfer",`<label class="f">Item<select id="tfItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Cases<input id="tfQty" type="number" min="1" value="20"></label><span></span><label class="f">From<select id="tfFrom"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">To<select id="tfTo"><option value="B">Warehouse B</option><option value="A">Warehouse A</option></select></label></div>`,
+  openModal("New warehouse transfer",`<label class="f">Item<select id="tfItem" data-chg="uitem" data-id="tfU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Quantity<input id="tfQty" type="number" min="0" step="any" value="20"></label><label class="f">Unit<select id="tfU">${unitOpts(ITEMS[0])}</select></label><label class="f">From<select id="tfFrom"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">To<select id="tfTo"><option value="B">Warehouse B</option><option value="A">Warehouse A</option></select></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trf-create">Create transfer</button>`);
 }
 /* ---------- paging, search, customers ---------- */
@@ -853,7 +906,7 @@ function rInvTable(){
 }
 function rInventory(){
   const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), sum=w=>ITEMS.reduce((n,i)=>n+i.stock[w],0);
-  return `<div class="kpis">${kpi("layers","Cases on hand",NUM.format(units),ITEMS.length+" SKUs, both warehouses")}${kpi("box","Warehouse A",NUM.format(sum("A")),"Main")}${kpi("box","Warehouse B",NUM.format(sum("B")),"Secondary")}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}${kpi("alert","Expiring in 30 days",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" cases","Sold first-expiring, first-out")}${kpi("alert","Expired on hand",NUM.format(ITEMS.reduce((n,i)=>n+expiredQty(i),0))+" cases","Not sold; write off")}</div>
+  return `<div class="kpis">${kpi("layers","Units on hand",NUM.format(units),ITEMS.length+" SKUs, both warehouses")}${kpi("box","Warehouse A",NUM.format(sum("A")),"Main")}${kpi("box","Warehouse B",NUM.format(sum("B")),"Secondary")}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}${kpi("alert","Expiring in 30 days",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" units","Sold first-expiring, first-out")}${kpi("alert","Expired on hand",NUM.format(ITEMS.reduce((n,i)=>n+expiredQty(i),0))+" units","Not sold; write off")}</div>
   ${filt("inventory",["All","Low Stock","Has Incoming","Expiring Soon","Food","Non-Food"])}
   <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button><button class="btn btn-primary btn-sm" data-act="item-new">${ic("plus",14)}Add item</button></span></div>
   <div class="panel" id="invTbl">${rInvTable()}</div>${trfPanel()}${dmgPanel()}`;
@@ -867,50 +920,52 @@ function itemModal(sku){
   DAMAGES.filter(d=>d.sku===sku).forEach(d=>mv.push({d:d.date,t:"Damage "+d.id+" ("+d.reason+")",w:d.wh,q:-d.qty}));
   mv.sort((a,b)=>b.d-a.d);
   const bt=i.batches.filter(b=>b.q.A+b.q.B>0).sort((a,b)=>expMs(a)-expMs(b));
-  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Category</b>${i.cat} (${i.food?"food":"non-food"})</div><div><b>Selling price</b>${money(i.price)} / case</div><div><b>Unit cost</b>${money(i.cost)}</div><div><b>Warehouse A</b>${NUM.format(i.stock.A)} cases</div><div><b>Warehouse B</b>${NUM.format(i.stock.B)} cases</div><div><b>Incoming</b>${incoming(sku)||0} cases</div></div>
-  <h4 style="margin-bottom:8px">Batches${i.food?" (sold first-expiring, first-out)":""}</h4><div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Lot</th><th>Expiry</th><th class="num">Wh A</th><th class="num">Wh B</th></tr></thead><tbody>${bt.map(b=>{const n=b.exp?dayDiff(b.exp,TODAY):null;return `<tr><td>${b.lot}</td><td>${b.exp?dfmt(b.exp)+' <span class="badge '+(n<0?"b-bad":n<=30?"b-warn":"b-mute")+'">'+(n<0?"Expired":n<=30?n+" days left":"In date")+"</span>":"No expiry"}</td><td class="num">${b.q.A}</td><td class="num">${b.q.B}</td></tr>`}).join("")||`<tr><td colspan="4">No stock on hand.</td></tr>`}</tbody></table></div>
-  <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Cases</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":""}${m.q}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`);
+  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Category</b>${i.cat} (${i.food?"food":"non-food"})</div><div><b>Stock unit</b>${i.uom}</div><div><b>Also sold in</b>${i.alts.length?i.alts.map(a=>a.u+" ("+a.per+" per "+uom(i.uom).s+")").join(", "):"None"}</div><div><b>Selling price</b>${money(i.price)} / ${uom(i.uom).s}</div><div><b>Cost</b>${money(i.cost)} / ${uom(i.uom).s}</div><div><b>Warehouse A</b>${fq(i.sku,i.stock.A)}</div><div><b>Warehouse B</b>${fq(i.sku,i.stock.B)}</div><div><b>Incoming</b>${fq(i.sku,incoming(sku)||0)}</div></div>
+  <h4 style="margin-bottom:8px">Batches${i.food?" (sold first-expiring, first-out)":""}</h4><div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Lot</th><th>Expiry</th><th class="num">Wh A</th><th class="num">Wh B</th></tr></thead><tbody>${bt.map(b=>{const n=b.exp?dayDiff(b.exp,TODAY):null;return `<tr><td>${b.lot}</td><td>${b.exp?dfmt(b.exp)+' <span class="badge '+(n<0?"b-bad":n<=30?"b-warn":"b-mute")+'">'+(n<0?"Expired":n<=30?n+" days left":"In date")+"</span>":"No expiry"}</td><td class="num">${fq(i.sku,b.q.A)}</td><td class="num">${fq(i.sku,b.q.B)}</td></tr>`}).join("")||`<tr><td colspan="4">No stock on hand.</td></tr>`}</tbody></table></div>
+  <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Quantity</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":"-"}${fq(i.sku,Math.abs(m.q))}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`,`<button class="btn btn-ghost" data-act="modal-close">Close</button><button class="btn btn-ghost" data-act="item-units" data-id="${i.sku}">Edit units</button>`);
 }
 function dmgPanel(){
-  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Cases</th><th>Reason</th><th class="num">Cost value</th><th></th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${d.qty}</td><td>${d.reason}</td><td class="num">${money(d.qty*I(d.sku).cost)}</td><td>${d.rtv?`<span class="badge b-info">${d.rtv}</span>`:`<button class="btn btn-ghost btn-sm" data-act="rtv-new" data-id="${d.id}">Return to vendor</button>`}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the cases from stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Qty</th><th>Reason</th><th class="num">Cost value</th><th></th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${fq(d.sku,d.qty)}</td><td>${d.reason}</td><td class="num">${money(d.qty*I(d.sku).cost)}</td><td>${d.rtv?`<span class="badge b-info">${d.rtv}</span>`:`<button class="btn btn-ghost btn-sm" data-act="rtv-new" data-id="${d.id}">Return to vendor</button>`}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
 }
 function itemNew(){
   openModal("Add item",`<label class="f">Item name<input id="niName" placeholder="Name and pack size, e.g. 24 pcs/case"></label>
-  <div class="grid2"><label class="f">Category<select id="niCat">${Object.keys(CATS).map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Reorder level (cases)<input id="niRe" type="number" min="0" value="20"></label>
-  <label class="f">Cost per case (PHP)<input id="niCost" type="number" min="0" step="0.01"></label><label class="f">Selling price per case (PHP)<input id="niPrice" type="number" min="0" step="0.01"></label>
-  <label class="f">Opening stock (cases)<input id="niQty" type="number" min="0" value="0"></label><label class="f">Warehouse<select id="niWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label></div>
+  <div class="grid2"><label class="f">Category<select id="niCat">${Object.keys(CATS).map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Stock unit<select id="niUom">${UOMS.map(u=>`<option>${u.n}</option>`).join("")}</select></label><label class="f">Reorder level (stock units)<input id="niRe" type="number" min="0" value="20"></label>
+  <label class="f">Also sold in (optional)<select id="niAlt"><option value="">None</option>${UOMS.map(u=>`<option>${u.n}</option>`).join("")}</select></label><label class="f">How many in 1 stock unit<input id="niPer" type="number" min="0" step="any" value="12"></label>
+  <label class="f">Cost per stock unit (PHP)<input id="niCost" type="number" min="0" step="0.01"></label><label class="f">Selling price per stock unit (PHP)<input id="niPrice" type="number" min="0" step="0.01"></label>
+  <label class="f">Opening stock (stock units)<input id="niQty" type="number" min="0" step="any" value="0"></label><label class="f">Warehouse<select id="niWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label></div>
   <p class="note">The SKU is assigned automatically. Perishable categories get an expiry date from their usual shelf life. Categories are managed under Settings.</p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="item-create">Save item</button>`);
 }
 function itemCreate(){
-  const name=$("#niName").value.trim(), cat=$("#niCat").value, cost=parseFloat($("#niCost").value)||0, price=parseFloat($("#niPrice").value)||0, q=Math.max(0,parseInt($("#niQty").value)||0);
+  const name=$("#niName").value.trim(), cat=$("#niCat").value, cost=parseFloat($("#niCost").value)||0, price=parseFloat($("#niPrice").value)||0, q=Math.max(0,parseFloat($("#niQty").value)||0);
   if(!name){toast("Enter the item name.");return}
-  if(cost<=0||price<=0){toast("Enter the cost and selling price per case.");return}
+  if(cost<=0||price<=0){toast("Enter the cost and selling price per stock unit.");return}
   if(ITEMS.some(i=>i.name.toLowerCase()===name.toLowerCase())){toast(name+" is already in the item list.");return}
-  const sku="SKU-"+(Math.max(...ITEMS.map(i=>parseInt(i.sku.slice(4))))+1), it=mk(sku,name,cat,cost,price,Math.max(0,parseInt($("#niRe").value)||0),[]);
+  const sku="SKU-"+(Math.max(...ITEMS.map(i=>parseInt(i.sku.slice(4))))+1), it=mk(sku,name,cat,cost,price,Math.max(0,parseFloat($("#niRe").value)||0),[]);
+  it.uom=$("#niUom").value;it.alts=[];{const al=$("#niAlt").value,per=parseFloat($("#niPer").value)||0;if(al&&al!==it.uom&&per>0)it.alts=[{u:al,per}]}
   ITEMS.push(it);if(q>0)addStock(it,$("#niWh").value,q,"OPEN-"+sku.slice(4),it.food?addDays(it.shelf):null);
-  FIL.invQ=name;FIL.inventory="All";FIL.invPage=0;closeModal();toast(sku+" added"+(q?" with "+q+" cases in "+WH[$("#niWh").value]:" with no stock yet")+(price<cost?". Note: the selling price is below cost.":"."));renderPage();
+  FIL.invQ=name;FIL.inventory="All";FIL.invPage=0;closeModal();toast(sku+" added"+(q?" with "+fq(sku,q)+" in "+WH[$("#niWh").value]:" with no stock yet")+(price<cost?". Note: the selling price is below cost.":"."));renderPage();
 }
 function dmgNew(){
-  openModal("Report damage or write-off",`<label class="f">Item<select id="dmItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Warehouse<select id="dmWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Cases<input id="dmQty" type="number" min="1" value="5"></label></div>
+  openModal("Report damage or write-off",`<label class="f">Item<select id="dmItem" data-chg="uitem" data-id="dmU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Warehouse<select id="dmWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Quantity<input id="dmQty" type="number" min="0" step="any" value="5"></label></div><label class="f">Unit<select id="dmU">${unitOpts(ITEMS[0])}</select></label>
   <label class="f">Reason<select id="dmWhy" data-chg="dmwhy"><option>Broken in transit</option><option>Water damage</option><option>Handling</option><option>Expired</option><option>Other</option></select></label>
   <label class="f" id="dmOtherW" style="display:none">Describe the reason<input id="dmOther" placeholder="What happened?"></label>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="dmg-create">File report</button>`);
 }
 function dmgCreate(){
-  const i=I($("#dmItem").value),w=$("#dmWh").value,q=Math.max(1,parseInt($("#dmQty").value)||1);
+  const i=I($("#dmItem").value),w=$("#dmWh").value,q=qtyOf("dmItem","dmQty","dmU",0.0001);
   let why=$("#dmWhy").value;if(why==="Other"){const x=$("#dmOther").value.trim();if(!x){toast("Describe the reason for the damage.");return}why="Other: "+x}
-  if(i.stock[w]<q){toast("Only "+i.stock[w]+" cases of "+i.name+" at "+WH[w]+".");return}
+  if(i.stock[w]<q){toast("Only "+fq(i.sku,i.stock[w])+" of "+i.name+" at "+WH[w]+".");return}
   const used=takeStock(i,w,q,true);DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:i.sku,wh:w,lot:used.map(u=>u.lot).join(", "),qty:q,reason:why});
-  closeModal();toast("DMG-"+dmgSeq+" filed. "+q+" cases removed from "+WH[w]+" ("+money(q*i.cost)+" at cost).");renderPage();
+  closeModal();toast("DMG-"+dmgSeq+" filed. "+fq(i.sku,q)+" removed from "+WH[w]+" ("+money(q*i.cost)+" at cost).");renderPage();
 }
 function trfCreate(){
-  const i=I($("#tfItem").value), q=Math.max(1,parseInt($("#tfQty").value)||1), f=$("#tfFrom").value, t=$("#tfTo").value;
+  const i=I($("#tfItem").value), q=qtyOf("tfItem","tfQty","tfU",0.0001), f=$("#tfFrom").value, t=$("#tfTo").value;
   if(f===t){toast("Choose two different warehouses.");return}
-  if(sellable(i,f)<q){toast("Only "+sellable(i,f)+" in-date cases of "+i.name+" at "+WH[f]+".");return}
+  if(sellable(i,f)<q){toast("Only "+fq(i.sku,sellable(i,f))+" in-date of "+i.name+" at "+WH[f]+".");return}
   const lots=takeStock(i,f,q);TRANSFERS.push({id:"TRF-"+(++trfSeq),sku:i.sku,qty:q,from:f,to:t,date:addDays(0),status:"In Transit",lots});
-  closeModal();toast("TRF-"+trfSeq+" created. "+q+" cases are in transit to "+WH[t]+".");renderPage();
+  closeModal();toast("TRF-"+trfSeq+" created. "+fq(i.sku,q)+" in transit to "+WH[t]+".");renderPage();
 }
 function trfRecv(id){
   const t=TRANSFERS.find(x=>x.id===id),i=I(t.sku);t.status="Received";
@@ -922,15 +977,15 @@ function trfRecv(id){
 const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via==="Courier"&&nx==="Out for Delivery"?"Hand over to courier":o.via==="Courier"&&nx==="Delivered"?"Courier confirmed delivery":"Mark as: "+nx;
 function soNew(){
   openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Item<select id="nsItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Cases<input id="nsQty" type="number" min="1" value="20"></label>
-  <label class="f">Extra cases loaded for replacements<input id="nsBuf" type="number" min="0" value="0"></label><label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} cases)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div>`,
+  <div class="grid2"><label class="f">Item<select id="nsItem" data-chg="uitem" data-id="nsU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Quantity<input id="nsQty" type="number" min="0" step="any" value="20"></label><label class="f">Unit<select id="nsU">${unitOpts(ITEMS[0])}</select></label>
+  <label class="f">Extra loaded for replacements<input id="nsBuf" type="number" min="0" step="any" value="0"></label><label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} units)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
 }
 function soCreate(){
-  const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel);
-  if(veh&&q+Math.max(0,parseInt($("#nsBuf").value)||0)>veh.cap){toast((q+Math.max(0,parseInt($("#nsBuf").value)||0))+" cases is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
+  const q=qtyOf("nsItem","nsQty","nsU",0.0001), bf=qtyOf("nsItem","nsBuf","nsU",0), sku=$("#nsItem").value, cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel);
+  if(veh&&q+bf>veh.cap){toast(NUM.format(Math.round((q+bf)*100)/100)+" units is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
   const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
-  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:Math.max(0,parseInt($("#nsBuf").value)||0)}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:bf}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
   ORDERS.push(o);closeModal();
   toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
 }
@@ -948,33 +1003,33 @@ function makeReturn(o,sku,qty,reason,disp,date,res){
 const returnedQty=(o,sku)=>RETURNS.filter(r=>r.so===o.id&&r.sku===sku).reduce((n,r)=>n+r.qty,0);
 function retNew(id){
   const o=ORDERS.find(x=>x.id===id);
-  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. The customer gets a credit note against the invoice or a free replacement order. Damaged cases come back to the warehouse and are written off, or go back to stock if they are fine.</p>
+  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. The customer gets a credit note against the invoice or a free replacement order. Damaged stock comes back to the warehouse and are written off, or go back to stock if they are fine.</p>
   <label class="f">Item<select id="rtItem">${o.lines.map(l=>`<option value="${l.sku}">${I(l.sku).name} (delivered ${l.qty}, returned ${returnedQty(o,l.sku)})</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Cases returned<input id="rtQty" type="number" min="1" value="1"></label><label class="f">Reason<select id="rtWhy"><option>Damaged on delivery</option><option>Expired or near expiry</option><option>Wrong item</option><option>Over-delivered</option><option>Customer changed order</option></select></label></div>
-  <label class="f">Resolution for the customer<select id="rtRes"><option value="Credit">Credit note</option><option value="Replace">Replace the cases (no charge)</option></select></label>
-  <label class="f">Returned cases at the warehouse<select id="rtDisp"><option>Write off as damage</option><option>Back to stock</option></select></label>`,
+  <div class="grid2"><label class="f">Quantity returned<input id="rtQty" type="number" min="1" value="1"></label><label class="f">Reason<select id="rtWhy"><option>Damaged on delivery</option><option>Expired or near expiry</option><option>Wrong item</option><option>Over-delivered</option><option>Customer changed order</option></select></label></div>
+  <label class="f">Resolution for the customer<select id="rtRes"><option value="Credit">Credit note</option><option value="Replace">Replace the items (no charge)</option></select></label>
+  <label class="f">Returned stock at the warehouse<select id="rtDisp"><option>Write off as damage</option><option>Back to stock</option></select></label>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ret-create" data-id="${o.id}">Create credit note</button>`);
 }
 function retCreate(id){
   const o=ORDERS.find(x=>x.id===id), sku=$("#rtItem").value, l=o.lines.find(x=>x.sku===sku), q=Math.max(1,parseInt($("#rtQty").value)||1), left=l.qty-returnedQty(o,sku);
-  if(q>left){toast("Only "+left+" cases of "+I(sku).name+" can still be returned on "+o.id+".");return}
+  if(q>left){toast("Only "+fq(sku,left)+" of "+I(sku).name+" can still be returned on "+o.id+".");return}
   const r=makeReturn(o,sku,q,$("#rtWhy").value,$("#rtDisp").value,null,$("#rtRes").value);closeModal();
-  toast(r.rep?r.id+" saved. Replacement order "+r.rep+" for "+q+" cases created at no charge.":r.id+" saved. Credit note "+r.cn+" for "+money(r.value)+" applied to the invoice.");renderPage();
+  toast(r.rep?r.id+" saved. Replacement order "+r.rep+" for "+fq(sku,q)+" created at no charge.":r.id+" saved. Credit note "+r.cn+" for "+money(r.value)+" applied to the invoice.");renderPage();
 }
 function retPanel(){
-  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Returned cases</th><th>Resolution</th><th class="num">Credit</th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${r.rep?"Replacement "+r.rep:"Credit note "+r.cn}</td><td class="num">${r.rep?"-":money(r.value)}</td></tr>`).join("")||`<tr><td colspan="10">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return.</p></div>`;
+  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Qty</th><th>Reason</th><th>Returned stock</th><th>Resolution</th><th class="num">Credit</th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${fq(r.sku,r.qty)}</td><td>${r.reason}</td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${r.rep?"Replacement "+r.rep:"Credit note "+r.cn}</td><td class="num">${r.rep?"-":money(r.value)}</td></tr>`).join("")||`<tr><td colspan="10">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return.</p></div>`;
 }
 function tbRecv(id){
   const t=TRUCKBACK.find(x=>x.id===id),it=I(t.sku),ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];
   addStock(it,t.wh,t.qty,"RTN-"+t.so.slice(3),it.food?(ok?ok.exp:addDays(60)):null);t.status="Received";
-  toast(t.id+": "+t.qty+" cases received back at "+WH[t.wh]+" and returned to stock.");renderPage();
+  toast(t.id+": "+fq(t.sku,t.qty)+" received back at "+WH[t.wh]+" and returned to stock.");renderPage();
 }
 function tbPanel(){
-  return `<div class="panel"><h2>Spare cases expected back from trucks</h2><div class="tw"><table><thead><tr><th>Ref</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th>Warehouse</th><th class="num">Cases</th><th>Status</th><th></th></tr></thead><tbody>${TRUCKBACK.slice().reverse().map(t=>{const o=ORDERS.find(x=>x.id===t.so);return `<tr><td><b>${t.id}</b></td><td>${dfmt(t.date)}</td><td>${t.so}</td><td>${CUSTNAME(o.cust)}</td><td>${I(t.sku).name}</td><td>${WH[t.wh]}</td><td class="num">${t.qty}</td><td><span class="badge ${t.status==="Received"?"b-ok":"b-warn"}">${t.status}</span></td><td>${t.status==="Received"?"":`<button class="btn btn-ghost btn-sm" data-act="tb-recv" data-id="${t.id}">Receive at warehouse</button>`}</td></tr>`}).join("")||`<tr><td colspan="9">Nothing expected back.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Extra cases loaded for replacements that were not used. They return to stock only when the warehouse confirms receipt.</p></div>`;
+  return `<div class="panel"><h2>Spare stock expected back from trucks</h2><div class="tw"><table><thead><tr><th>Ref</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th>Warehouse</th><th class="num">Qty</th><th>Status</th><th></th></tr></thead><tbody>${TRUCKBACK.slice().reverse().map(t=>{const o=ORDERS.find(x=>x.id===t.so);return `<tr><td><b>${t.id}</b></td><td>${dfmt(t.date)}</td><td>${t.so}</td><td>${CUSTNAME(o.cust)}</td><td>${I(t.sku).name}</td><td>${WH[t.wh]}</td><td class="num">${fq(t.sku,t.qty)}</td><td><span class="badge ${t.status==="Received"?"b-ok":"b-warn"}">${t.status}</span></td><td>${t.status==="Received"?"":`<button class="btn btn-ghost btn-sm" data-act="tb-recv" data-id="${t.id}">Receive at warehouse</button>`}</td></tr>`}).join("")||`<tr><td colspan="9">Nothing expected back.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Extra stock loaded for replacements that were not used. They return to stock only when the warehouse confirms receipt.</p></div>`;
 }
 function rReturns(){
   const n=30,R30=RETURNS.filter(r=>inP(r.date,n));
-  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" cases")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("truck","Expected back",NUM.format(sumBy(TRUCKBACK.filter(t=>t.status!=="Received"),t=>t.qty))+" cases","Spare cases still on trucks")}${kpi("file","Awaiting vendor",RTVS.filter(r=>r.status==="Sent to vendor").length+" RTVs",money(sumBy(RTVS.filter(r=>r.status==="Sent to vendor"),r=>r.value)))}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" cases","Damage and returns")}</div>${tbPanel()}${retPanel()}${dmgPanel()}${rtvPanel()}`;
+  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" units")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("truck","Expected back",NUM.format(sumBy(TRUCKBACK.filter(t=>t.status!=="Received"),t=>t.qty))+" units","Spare stock still on trucks")}${kpi("file","Awaiting vendor",RTVS.filter(r=>r.status==="Sent to vendor").length+" RTVs",money(sumBy(RTVS.filter(r=>r.status==="Sent to vendor"),r=>r.value)))}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" units","Damage and returns")}</div>${tbPanel()}${retPanel()}${dmgPanel()}${rtvPanel()}`;
 }
 
 /* ---------- return to vendor (RTV) ---------- */
@@ -988,26 +1043,26 @@ function makeRtv(o){
 function rtvNew(dmgId){
   const d=DAMAGES.find(x=>x.id===dmgId), sk=d?d.sku:ITEMS[0].sku;
   openModal(d?"Return "+d.id+" to vendor":"New return to vendor (RTV)",`<label class="f">Item<select id="rvItem" ${d?"disabled":""}>${ITEMS.map(i=>`<option value="${i.sku}" ${i.sku===sk?"selected":""}>${i.name}</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Warehouse<select id="rvWh" ${d?"disabled":""}><option value="A" ${d&&d.wh==="A"?"selected":""}>Warehouse A</option><option value="B" ${d&&d.wh==="B"?"selected":""}>Warehouse B</option></select></label><label class="f">Cases<input id="rvQty" type="number" min="1" value="${d?d.qty:5}" ${d?"disabled":""}></label>
+  <div class="grid2"><label class="f">Warehouse<select id="rvWh" ${d?"disabled":""}><option value="A" ${d&&d.wh==="A"?"selected":""}>Warehouse A</option><option value="B" ${d&&d.wh==="B"?"selected":""}>Warehouse B</option></select></label><label class="f">Quantity (stock units)<input id="rvQty" type="number" min="1" step="any" value="${d?d.qty:5}" ${d?"disabled":""}></label>
   <label class="f">Vendor<select id="rvSup">${SUPPS.map(z=>z.name).map(x=>`<option ${d&&supplierOfLot(d.lot)===x?"selected":""}>${x}</option>`).join("")}</select></label><label class="f">Reason<select id="rvWhy">${["Damaged","Expired","Wrong item","Quality issue"].map(x=>`<option>${x}</option>`).join("")}</select></label></div>
-  <label class="f">Vendor makes it right by<select id="rvRes"><option value="Credit">Credit note (reduces what we owe)</option><option value="Replacement">Replacement cases</option></select></label>
-  <p class="note">${d?"These cases are already out of stock as damage, so no stock is deducted.":"The cases leave the warehouse stock now, earliest expiry first."}</p>`,
+  <label class="f">Vendor makes it right by<select id="rvRes"><option value="Credit">Credit note (reduces what we owe)</option><option value="Replacement">Replacement stock</option></select></label>
+  <p class="note">${d?"This stock is already out of stock as damage, so no stock is deducted.":"The stock leaves the warehouse now, earliest expiry first."}</p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="rtv-create" data-id="${d?d.id:""}">Create RTV</button>`);
 }
 function rtvCreate(dmgId){
   const d=DAMAGES.find(x=>x.id===dmgId),sku=d?d.sku:$("#rvItem").value,wh=d?d.wh:$("#rvWh").value,qty=d?d.qty:Math.max(1,parseInt($("#rvQty").value)||1);
-  if(!d&&I(sku).stock[wh]<qty){toast("Only "+I(sku).stock[wh]+" cases of "+I(sku).name+" at "+WH[wh]+".");return}
+  if(!d&&I(sku).stock[wh]<qty){toast("Only "+fq(sku,I(sku).stock[wh])+" of "+I(sku).name+" at "+WH[wh]+".");return}
   const r=makeRtv({sku,wh,qty,supplier:$("#rvSup").value,reason:$("#rvWhy").value,res:$("#rvRes").value,src:d?d.id:"Warehouse stock",takeFromStock:!d});
-  if(d)d.rtv=r.id;closeModal();toast(r.id+" created for "+r.supplier+": "+qty+" cases, expecting "+(r.res==="Credit"?"a credit of "+money(r.value):"replacement cases")+".");renderPage();
+  if(d)d.rtv=r.id;closeModal();toast(r.id+" created for "+r.supplier+": "+fq(sku,qty)+", expecting "+(r.res==="Credit"?"a credit of "+money(r.value):"replacement stock")+".");renderPage();
 }
 function rtvDone(id){
   const r=RTVS.find(x=>x.id===id),it=I(r.sku);
   if(r.res==="Credit"){r.status="Credit received";toast(r.id+": "+money(r.value)+" credit from "+r.supplier+" recorded. Pending payables reduced.")}
-  else{addStock(it,r.wh,r.qty,"RTV-"+r.id.slice(4),it.food?addDays(it.shelf):null);r.status="Replacement received";toast(r.id+": "+r.qty+" replacement cases received at "+WH[r.wh]+".")}
+  else{addStock(it,r.wh,r.qty,"RTV-"+r.id.slice(4),it.food?addDays(it.shelf):null);r.status="Replacement received";toast(r.id+": "+fq(r.sku,r.qty)+" replacement received at "+WH[r.wh]+".")}
   renderPage();
 }
 function rtvPanel(){
-  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Returns to vendor (RTV)</h2><button class="btn btn-primary btn-sm" data-act="rtv-new" data-id="">${ic("plus",14)}New RTV</button></div><div class="tw"><table><thead><tr><th>RTV</th><th>Date</th><th>Vendor</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Vendor to give</th><th>Status</th><th class="num">Value</th><th></th></tr></thead><tbody>${RTVS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.supplier}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td>${r.res==="Credit"?"Credit note":"Replacement"}</td><td><span class="badge ${r.status==="Sent to vendor"?"b-warn":"b-ok"}">${r.status}</span></td><td class="num">${money(r.value)}</td><td>${r.status==="Sent to vendor"?`<button class="btn btn-ghost btn-sm" data-act="rtv-done" data-id="${r.id}">${r.res==="Credit"?"Record credit":"Receive replacement"}</button>`:""}</td></tr>`).join("")||`<tr><td colspan="10">No vendor returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Damaged or expired stock goes back to the supplier. A credit note lowers pending payables; replacement cases return to stock when received.</p></div>`;
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Returns to vendor (RTV)</h2><button class="btn btn-primary btn-sm" data-act="rtv-new" data-id="">${ic("plus",14)}New RTV</button></div><div class="tw"><table><thead><tr><th>RTV</th><th>Date</th><th>Vendor</th><th>Item</th><th class="num">Qty</th><th>Reason</th><th>Vendor to give</th><th>Status</th><th class="num">Value</th><th></th></tr></thead><tbody>${RTVS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.supplier}</td><td>${I(r.sku).name}</td><td class="num">${fq(r.sku,r.qty)}</td><td>${r.reason}</td><td>${r.res==="Credit"?"Credit note":"Replacement"}</td><td><span class="badge ${r.status==="Sent to vendor"?"b-warn":"b-ok"}">${r.status}</span></td><td class="num">${money(r.value)}</td><td>${r.status==="Sent to vendor"?`<button class="btn btn-ghost btn-sm" data-act="rtv-done" data-id="${r.id}">${r.res==="Credit"?"Record credit":"Receive replacement"}</button>`:""}</td></tr>`).join("")||`<tr><td colspan="10">No vendor returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Damaged or expired stock goes back to the supplier. A credit note lowers pending payables; replacement stock returns when received.</p></div>`;
 }
 
 /* ---------- customer applications ---------- */
@@ -1057,7 +1112,7 @@ function trkForm(kind,id){
   const own=VEHICLES.filter(v=>!v.maint);
   openModal(kind==="po"?"Dispatch "+id:"Trucking to warehouse · "+id,`${kind==="po"?`<label class="f">How is it shipped?<select id="trMode" data-chg="trmode"><option value="direct">By truck, direct to the warehouse</option><option value="sea">By truck and sea freight (inter-island)</option></select></label>
   <div id="trSea" style="display:none"><div class="grid2"><label class="f">Origin port<input id="trOrigin" placeholder="e.g. port in the supplier's city"></label><label class="f">Port of arrival<select id="trDest"><option>Port A</option><option>Port B</option></select></label><label class="f">Shipping line or vessel<input id="trLine"></label><label class="f">Waybill or B/L no.<input id="trBl"></label><label class="f">Expected at the port<input id="trEta" type="date" value="${ymd(addDays(7))}"></label><label class="f">Freight and handling (PHP)<input id="trCost" type="number" min="0" value="0"></label></div></div>`:`<p class="note" style="margin:0 0 10px">Record which vehicle is bringing the goods to the warehouse.</p>`}
-  <label class="f"><span id="vhLbl">Vehicle</span><select id="vhSel" data-chg="vhsel">${own.map(v=>`<option value="${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} cases, ${vehStatus(v).toLowerCase()})</option>`).join("")}<option value="hired">Hired or supplier truck</option></select></label>
+  <label class="f"><span id="vhLbl">Vehicle</span><select id="vhSel" data-chg="vhsel">${own.map(v=>`<option value="${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} units, ${vehStatus(v).toLowerCase()})</option>`).join("")}<option value="hired">Hired or supplier truck</option></select></label>
   <div id="vhHired" style="display:${own.length?"none":"block"}"><div class="grid2"><label class="f">Hauler or owner<input id="vhOwner" placeholder="Company name"></label><label class="f">Plate number<input id="vhPlate"></label><label class="f">Vehicle type<select id="vhType">${VTYPES.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Driver name<input id="vhDrv"></label></div></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trk-save" data-k="${kind}" data-id="${id}">${kind==="po"?"Dispatch":"Save and advance"}</button>`);
 }
@@ -1070,7 +1125,7 @@ function trkSave(kind,id){
     veh={plate,type:$("#vhType").value,driver:drv,owner};
   }else{
     const v=VEHICLES.find(x=>x.id===sel);
-    if(cases>v.cap){toast(cases+" cases is more than "+v.plate+" can carry ("+v.cap+"). Choose a larger vehicle or a hired truck.");return}
+    if(cases>v.cap){toast(cases+" units is more than "+v.plate+" can carry ("+v.cap+"). Choose a larger vehicle or a hired truck.");return}
     veh={plate:v.plate,type:v.type,driver:v.driver,owner:"Own"};
   }
   if(kind==="po"){
@@ -1088,17 +1143,17 @@ function rVehicles(){
   SHIPMENTS.filter(x=>x.veh&&x.stage>=3).forEach(x=>trips.push({ref:x.id,dir:"Inbound",plate:x.veh.plate,type:x.veh.type,driver:x.veh.driver,owner:x.veh.owner,route:originOf(x.supplier)+" to "+WH[x.wh],status:x.stage===4?"Delivered":"In transit"}));
   return `<div class="kpis">${kpi("truck","Own vehicles",VEHICLES.length,"")}${kpi("check","Available",n("Available"),"")}${kpi("pin","On route",n("On route"),"")}${kpi("alert","In maintenance",n("Maintenance"),"")}</div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary btn-sm" data-act="veh-new">${ic("plus",14)}Add vehicle</button></div>
-  <div class="panel"><h2>Own vehicles</h2><div class="tw"><table><thead><tr><th>Plate</th><th>Type</th><th class="num">Capacity</th><th>Driver</th><th>Status</th><th>Current trip</th><th></th></tr></thead><tbody>${VEHICLES.map((v,i)=>`<tr><td><b>${v.plate}</b></td><td>${v.type}</td><td class="num">${NUM.format(v.cap)} cases</td><td>${v.driver}</td><td><span class="badge ${vehBadge[st[i]]}">${st[i]}</span></td><td>${(trips.find(t=>t.plate===v.plate)||{}).ref||"None"}</td><td><button class="btn btn-ghost btn-sm" data-act="veh" data-id="${v.id}">View</button></td></tr>`).join("")}</tbody></table></div></div>
+  <div class="panel"><h2>Own vehicles</h2><div class="tw"><table><thead><tr><th>Plate</th><th>Type</th><th class="num">Capacity</th><th>Driver</th><th>Status</th><th>Current trip</th><th></th></tr></thead><tbody>${VEHICLES.map((v,i)=>`<tr><td><b>${v.plate}</b></td><td>${v.type}</td><td class="num">${NUM.format(v.cap)} units</td><td>${v.driver}</td><td><span class="badge ${vehBadge[st[i]]}">${st[i]}</span></td><td>${(trips.find(t=>t.plate===v.plate)||{}).ref||"None"}</td><td><button class="btn btn-ghost btn-sm" data-act="veh" data-id="${v.id}">View</button></td></tr>`).join("")}</tbody></table></div></div>
   <div class="panel"><h2>Trips in progress</h2><div class="tw"><table><thead><tr><th>Trip</th><th>Direction</th><th>Vehicle</th><th>Driver</th><th>Route</th><th>Status</th></tr></thead><tbody>${trips.map(t=>`<tr><td><b>${t.ref}</b></td><td>${t.dir}</td><td>${t.plate||"Not set"}<div class="note" style="margin:0">${t.type}${t.owner!=="Own"?", "+t.owner:""}</div></td><td>${t.driver}</td><td>${t.route}</td><td>${t.status}</td></tr>`).join("")||`<tr><td colspan="6">No trips right now.</td></tr>`}</tbody></table></div></div>`;
 }
 function vehModal(id){
   const v=VEHICLES.find(x=>x.id===id), s=vehStatus(v);
-  openModal(v.plate,`<div class="kv"><div><b>Type</b>${v.type}</div><div><b>Capacity</b>${NUM.format(v.cap)} cases</div><div><b>Assigned driver</b>${v.driver}</div><div><b>Status</b><span class="badge ${vehBadge[s]}">${s}</span></div></div><p class="note">Own vehicle. Hired and supplier trucks are entered per trip when goods are dispatched.</p>`,
+  openModal(v.plate,`<div class="kv"><div><b>Type</b>${v.type}</div><div><b>Capacity</b>${NUM.format(v.cap)} units</div><div><b>Assigned driver</b>${v.driver}</div><div><b>Status</b><span class="badge ${vehBadge[s]}">${s}</span></div></div><p class="note">Own vehicle. Hired and supplier trucks are entered per trip when goods are dispatched.</p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s==="On route"?"":`<button class="btn btn-accent" data-act="veh-maint" data-id="${v.id}">${v.maint?"Back in service":"Send to maintenance"}</button>`}`);
 }
 function vehMaint(id){const v=VEHICLES.find(x=>x.id===id);v.maint=!v.maint;closeModal();toast(v.plate+(v.maint?" is in maintenance and can't be assigned.":" is back in service."));renderPage()}
 function vehNew(){
-  openModal("Add vehicle",`<div class="grid2"><label class="f">Plate number<input id="vnPlate" placeholder="ABC 1234"></label><label class="f">Vehicle type<select id="vnType">${VTYPES.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Capacity (cases)<input id="vnCap" type="number" min="1" value="500"></label><label class="f">Assigned driver<input id="vnDrv"></label></div>`,
+  openModal("Add vehicle",`<div class="grid2"><label class="f">Plate number<input id="vnPlate" placeholder="ABC 1234"></label><label class="f">Vehicle type<select id="vnType">${VTYPES.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Capacity (units)<input id="vnCap" type="number" min="1" value="500"></label><label class="f">Assigned driver<input id="vnDrv"></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="veh-create">Save vehicle</button>`);
 }
 function vehCreate(){
@@ -1117,7 +1172,7 @@ function rPurchasing(){const t=FIL.purTab;return filt("purTab",["Purchase orders
 function poTab(){
   const rows=POS.filter(p=>FIL.po==="All"||poStatus(p)===FIL.po).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
   return `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("po",["All","Draft","Sent","Confirmed","In transit","Received"])}<button class="btn btn-primary btn-sm" data-act="po-new">${ic("plus",14)}New purchase order</button></div>
-  <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th>Terms</th><th class="num">Cases</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td>${termShort(p)}</td><td class="num">${NUM.format(p.lines.reduce((n,l)=>n+l.qty,0))}</td><td class="num">${money(poTotal(p))}</td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
+  <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th>Terms</th><th class="num">Qty</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td>${termShort(p)}</td><td class="num">${fqs(p.lines)}</td><td class="num">${money(poTotal(p))}</td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
 }
 function poModal(id){
   const p=POS.find(x=>x.id===id), sp=SUP(p.sup), st=poStatus(p), tot=poTotal(p), intl=sp.kind==="International", sh=poShip(p), bl=BILLS.filter(b=>b.po===p.id);
@@ -1130,7 +1185,7 @@ function poModal(id){
   else if(st==="In transit")act=`<button class="btn btn-accent" data-act="ship" data-id="${sh.id}">Track ${sh.id}</button>`;
   openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Down payment</b>${st==="Draft"||st==="Sent"?`<select data-chg="podp" data-id="${p.id}">${DPOPTS.map(t=>`<option value="${t}" ${t===p.dp?"selected":""}>${dpLabel(t)}</option>`).join("")}</select>`:dpLabel(p.dp)}</div><div><b>Payment terms${p.dp?" on balance":""}</b>${st==="Draft"||st==="Sent"?`<select data-chg="poterms" data-id="${p.id}">${TERMOPTS.map(t=>`<option value="${t}" ${t===p.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select>`:termLabel(p.terms)}</div>${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
    <ul class="tl">${flow.map((x,j)=>`<li class="${j<k?"done":j===k?"cur":""}"><span class="c">${j<k||(j===k&&x==="Received")?ic("check",12):""}</span>${x}</li>`).join("")}</ul>
-   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Unit cost</th><th class="num">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${NUM.format(l.qty)}</td><td class="num">${money(l.cost)}</td><td class="num">${money(l.qty*l.cost)}</td></tr>`).join("")}</tbody></table></div>
+   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${fq(l.sku,l.qty)}</td><td class="num">${money(l.cost)}</td><td class="num">${money(l.qty*l.cost)}</td></tr>`).join("")}</tbody></table></div>
    <div class="sum">${p.dp?`<div><span>Down payment (${p.dp}%)</span><span>${money(dpAmt(p))}</span></div><div><span>${p.dp===100?"Balance":"Balance, "+termLabel(p.terms)}</span><span>${money(balAmt(p))}</span></div>`:""}<div class="tot"><span>PO total</span><span>${money(tot)}</span></div></div>${intl?`<p class="note">${usdNote(p.sup,tot)}. Freight, duties and port fees are billed separately by the forwarder and broker.</p>`:""}
    ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
@@ -1201,17 +1256,17 @@ function poNew(supName){
   let sug=ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
   const sugd=sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
   const row=k=>{const it=sug[k],q=it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):"";
-    return `<div style="display:grid;grid-template-columns:1fr 80px 96px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" type="number" min="0" value="${q}" aria-label="Cases"><input id="poCost${k}" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
+    return `<div style="display:grid;grid-template-columns:1fr 70px 84px 96px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
   openModal("New purchase order",`<div class="grid2"><label class="f">Supplier<select id="poSup" data-chg="posup">${["International","Local"].map(g=>`<optgroup label="${g}">${SUPPS.filter(x=>x.kind===g).map(x=>`<option ${x.name===sn?"selected":""}>${x.name} (${x.country})</option>`.replace("<option ",`<option value="${x.name}" `)).join("")}</optgroup>`).join("")}</select></label>
    <label class="f">Deliver to<select id="poWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label>
    <label class="f">Down payment<select id="poDp">${DPOPTS.map(t=>`<option value="${t}">${dpLabel(t)}</option>`).join("")}</select></label>
    <label class="f">Payment terms${""}<select id="poTerms">${TERMOPTS.map(t=>`<option value="${t}" ${t===sp.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select></label></div>
    <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual terms ${termLabel(sp.terms)}, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
-   <div style="display:grid;grid-template-columns:1fr 80px 96px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Cases</span><span>Unit cost</span></div>${row(0)}${row(1)}${row(2)}`,
+   <div style="display:grid;grid-template-columns:1fr 70px 84px 96px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost per stock unit</span></div>${row(0)}${row(1)}${row(2)}`,
    `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">Save as draft</button>`);
 }
 function poCreate(){
-  const sn=$("#poSup").value, lines=[0,1,2].map(k=>({sku:$("#poItem"+k).value,qty:parseInt($("#poQty"+k).value)||0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
+  const sn=$("#poSup").value, lines=[0,1,2].map(k=>({sku:$("#poItem"+k).value,qty:$("#poItem"+k).value?toStock(I($("#poItem"+k).value),$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0):0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
   if(!lines.length){toast("Add at least one item with a quantity.");return}
   lines.forEach(l=>{if(!l.cost)l.cost=I(l.sku).cost});
   const p={id:"PO-"+(++poSeq),sup:sn,terms:+$("#poTerms").value,dp:+$("#poDp").value,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines};POS.push(p);
@@ -1264,10 +1319,10 @@ function rReports(){
   const n=PD[FIL.repP], r=FIL.rep; let body="",title="",kp="";
   if(r==="Inbound stock"){
     title="Total inbound stock";const S=SHIPMENTS.filter(s=>s.stage===4&&inP(s.eta,n)),cs=s=>sumBy(s.lines,l=>l.qty);
-    body=tbl([["Shipment"],["Received"],["Warehouse"],["Supplier"],["Cases",1],["Landed cost",1]],S.map(s=>[s.id,dfmt(s.eta),WH[s.wh],s.supplier,NUM.format(cs(s)),money(shipCost(s))]),["Total","","","",NUM.format(sumBy(S,cs)),money(sumBy(S,shipCost))]);
+    body=tbl([["Shipment"],["Received"],["Warehouse"],["Supplier"],["Qty",1],["Landed cost",1]],S.map(s=>[s.id,dfmt(s.eta),WH[s.wh],s.supplier,NUM.format(cs(s)),money(shipCost(s))]),["Total","","","",NUM.format(sumBy(S,cs)),money(sumBy(S,shipCost))]);
   }else if(r==="Outbound stock"){
     title="Total outbound stock";const U=unitsOut(n);
-    body=tbl([["Item"],["Category"],["Cases out",1],["Sales value",1]],U.map(x=>[I(x.sku).name,I(x.sku).cat,NUM.format(x.q),money(x.v)]),["Total","",NUM.format(sumBy(U,x=>x.q)),money(sumBy(U,x=>x.v))]);
+    body=tbl([["Item"],["Category"],["Qty out",1],["Sales value",1]],U.map(x=>[I(x.sku).name,I(x.sku).cat,NUM.format(x.q),money(x.v)]),["Total","",NUM.format(sumBy(U,x=>x.q)),money(sumBy(U,x=>x.v))]);
   }else if(r==="Orders"){
     title="Total orders";const O=ORDERS.filter(o=>inP(o.date,n)).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
     kp=`<div class="kpis">${kpi("file","Total orders",NUM.format(O.length),"Last "+n+" days")}${kpi("check","Delivered",NUM.format(O.filter(o=>o.status==="Delivered").length),"")}${kpi("truck","In progress",NUM.format(O.filter(o=>["Pending","Packed","Out for Delivery"].includes(o.status)).length),"")}${kpi("alert","On credit hold",NUM.format(O.filter(o=>o.status==="Credit Hold").length),"")}${kpi("card","Order value",money(sumBy(O,orderTotal)),"")}</div>`;
@@ -1277,13 +1332,13 @@ function rReports(){
     body=tbl([["Invoice"],["Customer"],["Issued"],["Due"],["Amount",1],["Paid",1],["Balance",1],["Status"]],V.slice(0,20).map(i=>[i.id,CUSTNAME(i.cust),dfmt(i.issued),dfmt(i.due),money(i.amount),money(i.paid),money(i.amount-i.paid),`<span class="badge ${invBadge[invStatus(i)]}">${invStatus(i)}</span>`]),["Total ("+V.length+" invoices)","","","",money(sumBy(V,i=>i.amount)),money(sumBy(V,i=>i.paid)),money(sumBy(V,i=>i.amount-i.paid)),""])+(V.length>20?`<p class="note" style="margin-top:8px">Showing the latest 20 invoices. Export to CSV for the full list.</p>`:"");
   }else if(r==="Returns"){
     title="Customer returns";const T=RETURNS.filter(x=>inP(x.date,n));
-    body=tbl([["Return"],["Date"],["Customer"],["Item"],["Reason"],["Result"],["Cases",1],["Credit",1]],T.map(x=>[x.id,dfmt(x.date),CUSTNAME(x.cust),I(x.sku).name,x.reason,x.disp,x.qty,x.rep?"Replacement "+x.rep:money(x.value)]),["Total","","","","","",sumBy(T,x=>x.qty),money(sumBy(T,x=>x.value))]);
+    body=tbl([["Return"],["Date"],["Customer"],["Item"],["Reason"],["Result"],["Qty",1],["Credit",1]],T.map(x=>[x.id,dfmt(x.date),CUSTNAME(x.cust),I(x.sku).name,x.reason,x.disp,x.qty,x.rep?"Replacement "+x.rep:money(x.value)]),["Total","","","","","",sumBy(T,x=>x.qty),money(sumBy(T,x=>x.value))]);
   }else if(r==="Vendor returns"){
     title="Returns to vendor (RTV)";const V=RTVS.filter(x=>inP(x.date,n));
-    body=tbl([["RTV"],["Date"],["Vendor"],["Item"],["Reason"],["Vendor to give"],["Status"],["Cases",1],["Value",1]],V.map(x=>[x.id,dfmt(x.date),x.supplier,I(x.sku).name,x.reason,x.res==="Credit"?"Credit note":"Replacement",x.status,x.qty,money(x.value)]),["Total","","","","","","",sumBy(V,x=>x.qty),money(sumBy(V,x=>x.value))]);
+    body=tbl([["RTV"],["Date"],["Vendor"],["Item"],["Reason"],["Vendor to give"],["Status"],["Qty",1],["Value",1]],V.map(x=>[x.id,dfmt(x.date),x.supplier,I(x.sku).name,x.reason,x.res==="Credit"?"Credit note":"Replacement",x.status,x.qty,money(x.value)]),["Total","","","","","","",sumBy(V,x=>x.qty),money(sumBy(V,x=>x.value))]);
   }else if(r==="Damage"){
     title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
-    body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Cases",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
+    body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Qty",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
   }else if(r==="Payables"){
     title="Pending payables";const cr=creditTotal(),P=BILLS.filter(b=>billBal(b)>0).sort((a,b)=>a.due-b.due),net=Math.max(0,sumBy(P,billBal)-cr);
     kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(net),P.length+" unpaid bills, less "+money(cr)+" RTV credits")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
@@ -1291,8 +1346,8 @@ function rReports(){
   }else{
     title="Sales by customer";const m={};ORDERS.filter(o=>o.status==="Delivered"&&inP(o.delivered,n)).forEach(o=>{const x=m[o.cust]=m[o.cust]||{o:0,c:0,v:0};x.o++;x.c+=caseCt(o);x.v+=orderTotal(o)});
     const E=Object.entries(m).sort((a,b)=>b[1].v-a[1].v);
-    kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, last "+n+" days")}${kpi("users","Customers served",E.length,"")}${kpi("layers","Cases sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
-    body=tbl([["Customer"],["Type"],["Orders",1],["Cases",1],["Sales",1]],E.slice(0,15).map(([k,x])=>[CUSTNAME(k),CUSTS[k].type,x.o,NUM.format(x.c),money(x.v)]),["Total ("+E.length+" customers)","",sumBy(E,e=>e[1].o),NUM.format(sumBy(E,e=>e[1].c)),money(sumBy(E,e=>e[1].v))])+(E.length>15?`<p class="note" style="margin-top:8px">Showing the top 15 customers. Export to CSV for the full list.</p>`:"");
+    kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, last "+n+" days")}${kpi("users","Customers served",E.length,"")}${kpi("layers","Units sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
+    body=tbl([["Customer"],["Type"],["Orders",1],["Qty",1],["Sales",1]],E.slice(0,15).map(([k,x])=>[CUSTNAME(k),CUSTS[k].type,x.o,NUM.format(x.c),money(x.v)]),["Total ("+E.length+" customers)","",sumBy(E,e=>e[1].o),NUM.format(sumBy(E,e=>e[1].c)),money(sumBy(E,e=>e[1].v))])+(E.length>15?`<p class="note" style="margin-top:8px">Showing the top 15 customers. Export to CSV for the full list.</p>`:"");
   }
   return `${filt("rep",REPS)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days"])}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
 }
@@ -1330,7 +1385,7 @@ function renderDriver(){
   $("#drvDate").textContent=dfmt(TODAY);$("#drvTitle").textContent=dtab==="todo"?"Today's route":"Delivered today";
   $$(".tabbar button").forEach(b=>b.classList.toggle("active",b.dataset.id===dtab));
   const list=ORDERS.filter(o=>o.via!=="Courier"&&(dtab==="todo"?o.status==="Out for Delivery":(o.status==="Delivered"&&o.delivered&&dayDiff(TODAY,o.delivered)<=0)));
-  $("#drvBody").innerHTML=list.length?list.map(o=>`<button class="dcard" data-act="stop" data-id="${o.id}"><div class="r"><b>${CUSTNAME(o.cust)}</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div style="font-size:13px;color:var(--muted)">${o.id} &middot; ${o.lines.reduce((n,l)=>n+l.qty,0)} cases &middot; ${money(orderTotal(o))}${vehOf(o)?" &middot; "+vehOf(o).plate:""}</div><div style="font-size:13px;display:flex;gap:6px;align-items:center">${ic("pin",14)}Address Line, City A</div></button>`).join(""):`<div style="text-align:center;color:var(--muted);padding:40px 10px">${dtab==="todo"?"No stops left. Dispatch an order from the Console and it will appear here.":"Nothing delivered yet today."}</div>`;
+  $("#drvBody").innerHTML=list.length?list.map(o=>`<button class="dcard" data-act="stop" data-id="${o.id}"><div class="r"><b>${CUSTNAME(o.cust)}</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div style="font-size:13px;color:var(--muted)">${o.id} &middot; ${fqs(o.lines)} &middot; ${money(orderTotal(o))}${vehOf(o)?" &middot; "+vehOf(o).plate:""}</div><div style="font-size:13px;display:flex;gap:6px;align-items:center">${ic("pin",14)}Address Line, City A</div></button>`).join(""):`<div style="text-align:center;color:var(--muted);padding:40px 10px">${dtab==="todo"?"No stops left. Dispatch an order from the Console and it will appear here.":"Nothing delivered yet today."}</div>`;
 }
 function openStop(id){
   const o=ORDERS.find(x=>x.id===id);dsel=id;podPhoto=false;podSig=false;
@@ -1344,7 +1399,7 @@ function openStop(id){
 function sheetClose(){$("#sheet").classList.remove("open");$("#sheetBack").classList.remove("open")}
 function confirmDelivery(id){
   const o=ORDERS.find(x=>x.id===id), by=($("#recvBy").value||"").trim()||"Customer representative";
-  const dmg={};for(let k=0;k<o.lines.length;k++){const el=$("#dm"+k);if(el){const v=Math.max(0,parseInt(el.value)||0);if(v>o.lines[k].buf){toast("Only "+o.lines[k].buf+" spare cases are on the truck for "+I(o.lines[k].sku).name+".");return}dmg[o.lines[k].sku]=v}}
+  const dmg={};for(let k=0;k<o.lines.length;k++){const el=$("#dm"+k);if(el){const v=Math.max(0,parseInt(el.value)||0);if(v>o.lines[k].buf){toast("Only "+fq(o.lines[k].sku,o.lines[k].buf)+" spare are on the truck for "+I(o.lines[k].sku).name+".");return}dmg[o.lines[k].sku]=v}}
   deliver(o,by,{by,photo:podPhoto,sig:podSig},dmg);sheetClose();renderDriver();
 }
 
@@ -1366,7 +1421,7 @@ document.addEventListener("click",e=>{
   else if(a==="alerts")showAlerts();
   else if(a==="pmenu"){$("#pmenu").classList.toggle("open")}
   else if(a==="scroll"){e.preventDefault();const el=$(t.dataset.href||t.getAttribute("href"));if(el)el.scrollIntoView({behavior:"smooth"});$("#pmenu").classList.remove("open")}
-  else if(a==="add"){cart[id]=(cart[id]||0)+10;renderCatalog();toast("Added 10 cases of "+I(id).name)}
+  else if(a==="add"){cart[id]=(cart[id]||0)+10;renderCatalog();toast("Added 10 "+uom(I(id).uom).p+" of "+I(id).name)}
   else if(a==="cart-open")openCart();
   else if(a==="cart-clear"){Object.keys(cart).forEach(k=>delete cart[k]);closeModal();renderCatalog();toast("Order list cleared.")}
   else if(a==="cart-submit"){Object.keys(cart).forEach(k=>delete cart[k]);closeModal();renderCatalog();toast("Order request received. We will confirm stock and delivery shortly.")}
@@ -1383,7 +1438,7 @@ document.addEventListener("click",e=>{
   else if(a==="pg"){const k=t.dataset.k;FIL[k+"Page"]=Math.max(0,(FIL[k+"Page"]||0)+(+id));const c=$("#"+k+"Tbl");c.innerHTML=TBL[k]();paintIcons(c)}
   else if(a==="import")importModal(id);
   else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
-  else if(a==="cat-new")catForm("");else if(a==="cat-edit")catForm(id);else if(a==="cat-save")catSave(id);else if(a==="cat-del")catDel(id);else if(a==="item-new")itemNew();else if(a==="item-create")itemCreate();else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
+  else if(a==="uom-new")uomForm("");else if(a==="uom-edit")uomForm(id);else if(a==="uom-save")uomSave(id);else if(a==="uom-del")uomDel(id);else if(a==="item-units")itemUnits(id);else if(a==="item-units-save")itemUnitsSave(id);else if(a==="cat-new")catForm("");else if(a==="cat-edit")catForm(id);else if(a==="cat-save")catSave(id);else if(a==="cat-del")catDel(id);else if(a==="item-new")itemNew();else if(a==="item-create")itemCreate();else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
@@ -1403,7 +1458,8 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
   else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
   else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
-  else if(c==="poitem"){const it=I(t.value);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
+  else if(c==="uitem"){const e=$("#"+t.dataset.id);if(e)e.innerHTML=unitOpts(I(t.value))}
+  else if(c==="poitem"){const it=I(t.value);if(it)$("#poU"+t.dataset.id).innerHTML=unitOpts(it);$("#poCost"+t.dataset.id).value=it?it.cost:"";if(it&&!$("#poQty"+t.dataset.id).value)$("#poQty"+t.dataset.id).value=10}
   else if(c==="catsel"){FIL.catC=t.value;FIL.catN=12;renderCatalog()}
   else if(c==="impfile"&&t.files[0]){$("#impName").textContent="Selected: "+t.files[0].name+". The preview below is a sample."}
 });
