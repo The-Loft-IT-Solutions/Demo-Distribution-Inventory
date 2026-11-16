@@ -230,7 +230,7 @@ td.num,th.num{text-align:right}
 <div id="navigator" role="dialog" aria-label="Demo views">
   <div class="nav-inner">
     <h1 class="display">Distribution &amp; Inventory Management System</h1>
-    <p class="sub">Follow stock from the port to the warehouse, track what goes out per item, confirm delivery to the customer, then collect payment on 30, 45 or 60 day terms.</p>
+    <p class="sub">Follow stock from the port to the warehouse, track what goes out per item, confirm delivery to the customer, then collect payment on 15 to 60 day terms.</p>
     <div class="flow" aria-label="Process flow">
       <span class="step">Port</span>&rarr;<span class="step">Warehouse</span>&rarr;<span class="step">Sales per item</span>&rarr;<span class="step">Delivery</span>&rarr;<span class="step">Collections</span>
     </div>
@@ -472,6 +472,7 @@ SHIPMENTS.forEach(s=>s.pay={due:addDays(PAYD[s.id][0]),paid:!!PAYD[s.id][1]});
 const DAMAGES=[{id:"DMG-101",date:addDays(-18),sku:"SKU-1007",wh:"B",lot:"L2406-1007",qty:12,reason:"Water damage"},{id:"DMG-102",date:addDays(-9),sku:"SKU-1003",wh:"A",lot:"L2406-1003",qty:6,reason:"Broken in transit"},{id:"DMG-103",date:addDays(-3),sku:"SKU-1008",wh:"A",lot:"L2406-1008",qty:5,reason:"Handling"}];
 let dmgSeq=103;
 const RETURNS=[]; let retSeq=200, cnSeq=400;
+const TRUCKBACK=[]; let tbSeq=500;
 let trfSeq=301;
 const ORDERS=[]; const INVOICES=[];
 let soSeq=1016, invSeq=5010;
@@ -485,13 +486,13 @@ function mkInvoice(o,paidPct,pm){
   if(paidPct){const a=Math.round(amount*paidPct);inv.paid=a;inv.payments.push({date:addDays(-1),amt:a,method:pm||"Bank transfer",ref:"REF-"+(100+invSeq)})}
   INVOICES.push(inv);return inv;
 }
-const orderTotal=o=>o.lines.reduce((s,l)=>s+l.qty*I(l.sku).price,0);
+const orderTotal=o=>o.free?0:o.lines.reduce((s,l)=>s+l.qty*I(l.sku).price,0);
 [[1001,2,75,[[1001,80],[1003,40],[1007,100]],"A",0],[1002,1,85,[[1002,60],[1005,20]],"A",0],[1003,3,40,[[1004,50],[1006,15],[1008,80]],"B",.3],
  [1004,4,100,[[1001,40],[1002,40]],"A",0],[1005,5,20,[[1009,3],[1003,30]],"A",0],[1006,6,12,[[1007,120],[1008,120]],"B",0],
  [1007,7,5,[[1005,10],[1006,10],[1001,30]],"A",0],[1008,8,24,[[1010,2],[1004,25]],"A",0],
  [1009,1,100,[[1003,60],[1002,50]],"B",1],[1010,3,3,[[1001,30],[1008,60]],"A",.3]
 ].forEach(r=>{const o=mkOrder(r[0],r[1],r[2],r[3],"Delivered",r[4],r[0]%2?"Driver A":"Driver B");mkInvoice(o,r[5])});
-mkOrder(1011,2,0,[[1001,50],[1007,80]],"Out for Delivery","A","Driver A");
+mkOrder(1011,2,0,[[1001,50],[1007,100]],"Out for Delivery","A","Driver A").lines[1].buf=20;
 mkOrder(1012,5,0,[[1005,12],[1009,2]],"Out for Delivery","A","Driver B");
 mkOrder(1013,3,0,[[1002,40]],"Packed","B","Driver A");
 mkOrder(1014,6,0,[[1006,18],[1004,20]],"Pending","A","Driver B");
@@ -515,6 +516,7 @@ const shipCost=s=>s.lines.reduce((n,l)=>n+l.qty*I(l.sku).cost,0)+extraOf(s);
 const CUSTNAME=id=>CUSTS[id].name;
 makeReturn(ORDERS.find(x=>x.id==="SO-1003"),"SKU-1004",6,"Damaged on delivery","Write off as damage",addDays(-9));
 makeReturn(ORDERS.find(x=>x.id==="SO-1006"),"SKU-1008",10,"Wrong item","Back to stock",addDays(-4));
+TRUCKBACK.push({id:"TB-501",so:"SO-1010",sku:"SKU-1001",qty:12,wh:"A",date:addDays(-1),status:"Expected back"});tbSeq=501;
 
 /* ---------- view control ---------- */
 let current=null;
@@ -622,25 +624,34 @@ function rSales(){
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
 function soModal(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status], inv=invOf(o.id);
-  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div><div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
-  <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
+  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div>${o.rel?`<div style="grid-column:1/-1"><b>On delivery</b>${o.rel}</div>`:""}${o.replaces?`<div><b>Replacement for</b>${o.replaces} (no charge)</div>`:""}<div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
+  <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}${l.buf?` <span class="note">(+${l.buf} spare)</span>`:""}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
   <div class="sum"><div class="tot"><span>Order total</span><span>${money(orderTotal(o))}</span></div></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${o.status==="Delivered"?`<button class="btn btn-ghost" data-act="ret-new" data-id="${o.id}">Process return</button>`:""}${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${nextLabel(o,nx)}</button>`:""}`);
 }
 function soNext(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status];if(!nx)return;
   if(nx==="Out for Delivery"){
-    const short=o.lines.find(l=>sellable(I(l.sku),o.wh)<l.qty);
+    const short=o.lines.find(l=>sellable(I(l.sku),o.wh)<l.qty+(l.buf||0));
     if(short){toast("Not enough in-date stock of "+I(short.sku).name+" at "+WH[o.wh]+" to dispatch this order.");return}
-    o.lines.forEach(l=>takeStock(I(l.sku),o.wh,l.qty));toast(o.id+(o.via==="Courier"?" handed to "+o.driver+".":" is out for delivery.")+" Stock deducted from "+WH[o.wh]+", earliest expiry first.");
+    o.lines.forEach(l=>takeStock(I(l.sku),o.wh,l.qty+(l.buf||0)));toast(o.id+(o.via==="Courier"?" handed to "+o.driver+".":" is out for delivery.")+" Stock deducted from "+WH[o.wh]+", earliest expiry first.");
   }else if(nx==="Delivered"){deliver(o,"Customer representative")}
   else if(o.status==="Credit Hold"){toast("Credit override approved for "+o.id+". Released to Pending.")}
   else toast(o.id+" is now: "+nx);
   o.status=nx;closeModal();renderPage();
 }
-function deliver(o,by,pod){
-  o.delivered=addDays(0);o.receivedBy=by;o.status="Delivered";o.pod=pod||{by,photo:false,sig:false};
-  if(!invOf(o.id)){const inv=mkInvoice(o,0);toast(o.id+" delivered. "+inv.id+" created, due "+dfmt(inv.due)+" (Net "+inv.terms+").")}
+function settleBuffer(o,dmg){
+  dmg=dmg||{};let note="";
+  o.lines.forEach(l=>{if(!l.buf||l.settled)return;l.settled=true;const it=I(l.sku),d=Math.min(l.buf,Math.max(0,+dmg[l.sku]||0)),back=l.buf-d;
+    if(back>0)TRUCKBACK.push({id:"TB-"+(++tbSeq),so:o.id,sku:l.sku,qty:back,wh:o.wh,date:addDays(0),status:"Expected back"});
+    if(d>0){DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:l.sku,wh:o.wh,lot:"Truck "+o.id,qty:d,reason:"Damaged on delivery, replaced from truck"});
+      RETURNS.push({id:"RET-"+(++retSeq),cn:"",so:o.id,cust:o.cust,date:addDays(0),sku:l.sku,qty:d,reason:"Damaged on delivery",disp:"Write off as damage",value:0,res:"Replacement",rep:"on delivery (from truck)"})}
+    note+=" "+it.name.split(" (")[0]+": "+l.qty+" delivered"+(d?", "+d+" damaged and replaced from the truck":"")+(back?", "+back+" spare expected back at the warehouse":"")+".";});
+  o.rel=note.trim();return note;
+}
+function deliver(o,by,pod,dmg){
+  o.delivered=addDays(0);o.receivedBy=by;o.status="Delivered";o.pod=pod||{by,photo:false,sig:false};const note=settleBuffer(o,dmg);
+  if(o.free){toast(o.id+" delivered. Replacement for "+o.replaces+", no invoice.")}else if(!invOf(o.id)){const inv=mkInvoice(o,0);toast(o.id+" delivered. "+inv.id+" created, due "+dfmt(inv.due)+" (Net "+inv.terms+")."+note)}
 }
 function rCollections(){
   const f=FIL.collections, rows=INVOICES.filter(i=>f==="All"||invStatus(i)===f).slice().sort((a,b)=>a.due-b.due);
@@ -770,46 +781,57 @@ const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via
 function soNew(){
   openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Item<select id="nsItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Cases<input id="nsQty" type="number" min="1" value="20"></label>
-  <label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia"><option value="Truck">Own truck</option><option value="Courier">Third-party courier</option></select></label></div>`,
+  <label class="f">Extra cases loaded for replacements<input id="nsBuf" type="number" min="0" value="0"></label><label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">Delivery by<select id="nsVia"><option value="Truck">Own truck</option><option value="Courier">Third-party courier</option></select></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
 }
 function soCreate(){
   const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value, via=$("#nsVia").value;
   const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
-  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":"Driver A",via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:Math.max(0,parseInt($("#nsBuf").value)||0)}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":"Driver A",via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
   ORDERS.push(o);closeModal();
   toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
 }
 
 /* ---------- customer returns and credit notes ---------- */
-function makeReturn(o,sku,qty,reason,disp,date){
-  const l=o.lines.find(x=>x.sku===sku), it=I(sku), val=qty*it.price, inv=invOf(o.id), id="RET-"+(++retSeq), cn="CN-"+(++cnSeq);
-  if(inv){inv.amount=Math.max(inv.paid,inv.amount-val);inv.credits=(inv.credits||0)+val}
+function makeReturn(o,sku,qty,reason,disp,date,res){
+  const l=o.lines.find(x=>x.sku===sku), it=I(sku), val=qty*it.price, inv=invOf(o.id), id="RET-"+(++retSeq), rp=res==="Replace", cn=rp?"":"CN-"+(++cnSeq);
+  if(inv&&!rp){inv.amount=Math.max(inv.paid,inv.amount-val);inv.credits=(inv.credits||0)+val}
   if(disp==="Back to stock"){const ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];addStock(it,o.wh,qty,"RET-"+id.slice(4),it.food?(ok?ok.exp:addDays(60)):null)}
   else DAMAGES.push({id:"DMG-"+(++dmgSeq),date:date||addDays(0),sku,wh:o.wh,lot:"Return "+id,qty,reason:"Customer return: "+reason});
-  const r={id,cn,so:o.id,cust:o.cust,date:date||addDays(0),sku,qty,reason,disp,value:val};RETURNS.push(r);return r;
+  const r={id,cn,so:o.id,cust:o.cust,date:date||addDays(0),sku,qty,reason,disp,value:rp?0:val,res:rp?"Replacement":"Credit note"};
+  if(rp){const n={id:"SO-"+(++soSeq),cust:o.cust,date:date||addDays(0),lines:[{sku,qty}],status:"Pending",wh:o.wh,driver:o.via==="Courier"?"Courier X":o.driver,via:o.via,track:o.via==="Courier"?"TRK-"+(9000+soSeq):"",free:true,replaces:o.id,delivered:null,receivedBy:"",pod:null};ORDERS.push(n);r.rep=n.id}
+  RETURNS.push(r);return r;
 }
 const returnedQty=(o,sku)=>RETURNS.filter(r=>r.so===o.id&&r.sku===sku).reduce((n,r)=>n+r.qty,0);
 function retNew(id){
   const o=ORDERS.find(x=>x.id===id);
-  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. A return creates a credit note against the invoice and either puts the cases back in stock or writes them off.</p>
+  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. The customer gets a credit note against the invoice or a free replacement order. Damaged cases come back to the warehouse and are written off, or go back to stock if they are fine.</p>
   <label class="f">Item<select id="rtItem">${o.lines.map(l=>`<option value="${l.sku}">${I(l.sku).name} (delivered ${l.qty}, returned ${returnedQty(o,l.sku)})</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Cases returned<input id="rtQty" type="number" min="1" value="1"></label><label class="f">Reason<select id="rtWhy"><option>Damaged on delivery</option><option>Expired or near expiry</option><option>Wrong item</option><option>Over-delivered</option><option>Customer changed order</option></select></label></div>
-  <label class="f">What happens to the cases<select id="rtDisp"><option>Back to stock</option><option>Write off as damage</option></select></label>`,
+  <label class="f">Resolution for the customer<select id="rtRes"><option value="Credit">Credit note</option><option value="Replace">Replace the cases (no charge)</option></select></label>
+  <label class="f">Returned cases at the warehouse<select id="rtDisp"><option>Write off as damage</option><option>Back to stock</option></select></label>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ret-create" data-id="${o.id}">Create credit note</button>`);
 }
 function retCreate(id){
   const o=ORDERS.find(x=>x.id===id), sku=$("#rtItem").value, l=o.lines.find(x=>x.sku===sku), q=Math.max(1,parseInt($("#rtQty").value)||1), left=l.qty-returnedQty(o,sku);
   if(q>left){toast("Only "+left+" cases of "+I(sku).name+" can still be returned on "+o.id+".");return}
-  const r=makeReturn(o,sku,q,$("#rtWhy").value,$("#rtDisp").value);closeModal();
-  toast(r.id+" saved. Credit note "+r.cn+" for "+money(r.value)+" applied to the invoice.");renderPage();
+  const r=makeReturn(o,sku,q,$("#rtWhy").value,$("#rtDisp").value,null,$("#rtRes").value);closeModal();
+  toast(r.rep?r.id+" saved. Replacement order "+r.rep+" for "+q+" cases created at no charge.":r.id+" saved. Credit note "+r.cn+" for "+money(r.value)+" applied to the invoice.");renderPage();
 }
 function retPanel(){
-  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Result</th><th>Credit note</th><th class="num">Credit</th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${r.cn}</td><td class="num">${money(r.value)}</td></tr>`).join("")||`<tr><td colspan="10">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return.</p></div>`;
+  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Returned cases</th><th>Resolution</th><th class="num">Credit</th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${r.rep?"Replacement "+r.rep:"Credit note "+r.cn}</td><td class="num">${r.rep?"-":money(r.value)}</td></tr>`).join("")||`<tr><td colspan="10">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return.</p></div>`;
+}
+function tbRecv(id){
+  const t=TRUCKBACK.find(x=>x.id===id),it=I(t.sku),ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];
+  addStock(it,t.wh,t.qty,"RTN-"+t.so.slice(3),it.food?(ok?ok.exp:addDays(60)):null);t.status="Received";
+  toast(t.id+": "+t.qty+" cases received back at "+WH[t.wh]+" and returned to stock.");renderPage();
+}
+function tbPanel(){
+  return `<div class="panel"><h2>Spare cases expected back from trucks</h2><div class="tw"><table><thead><tr><th>Ref</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th>Warehouse</th><th class="num">Cases</th><th>Status</th><th></th></tr></thead><tbody>${TRUCKBACK.slice().reverse().map(t=>{const o=ORDERS.find(x=>x.id===t.so);return `<tr><td><b>${t.id}</b></td><td>${dfmt(t.date)}</td><td>${t.so}</td><td>${CUSTNAME(o.cust)}</td><td>${I(t.sku).name}</td><td>${WH[t.wh]}</td><td class="num">${t.qty}</td><td><span class="badge ${t.status==="Received"?"b-ok":"b-warn"}">${t.status}</span></td><td>${t.status==="Received"?"":`<button class="btn btn-ghost btn-sm" data-act="tb-recv" data-id="${t.id}">Receive at warehouse</button>`}</td></tr>`}).join("")||`<tr><td colspan="9">Nothing expected back.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Extra cases loaded for replacements that were not used. They return to stock only when the warehouse confirms receipt.</p></div>`;
 }
 function rReturns(){
   const n=30,R30=RETURNS.filter(r=>inP(r.date,n));
-  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" cases")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" cases","Damage and returns")}</div>${retPanel()}${dmgPanel()}`;
+  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" cases")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("truck","Expected back",NUM.format(sumBy(TRUCKBACK.filter(t=>t.status!=="Received"),t=>t.qty))+" cases","Spare cases still on trucks")}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" cases","Damage and returns")}</div>${tbPanel()}${retPanel()}${dmgPanel()}`;
 }
 
 /* ---------- reports ---------- */
@@ -836,7 +858,7 @@ function rReports(){
     body=tbl([["Invoice"],["Customer"],["Issued"],["Due"],["Amount",1],["Paid",1],["Balance",1],["Status"]],V.slice(0,20).map(i=>[i.id,CUSTNAME(i.cust),dfmt(i.issued),dfmt(i.due),money(i.amount),money(i.paid),money(i.amount-i.paid),`<span class="badge ${invBadge[invStatus(i)]}">${invStatus(i)}</span>`]),["Total ("+V.length+" invoices)","","","",money(sumBy(V,i=>i.amount)),money(sumBy(V,i=>i.paid)),money(sumBy(V,i=>i.amount-i.paid)),""])+(V.length>20?`<p class="note" style="margin-top:8px">Showing the latest 20 invoices. Export to CSV for the full list.</p>`:"");
   }else if(r==="Returns"){
     title="Customer returns";const T=RETURNS.filter(x=>inP(x.date,n));
-    body=tbl([["Return"],["Date"],["Customer"],["Item"],["Reason"],["Result"],["Cases",1],["Credit",1]],T.map(x=>[x.id,dfmt(x.date),CUSTNAME(x.cust),I(x.sku).name,x.reason,x.disp,x.qty,money(x.value)]),["Total","","","","","",sumBy(T,x=>x.qty),money(sumBy(T,x=>x.value))]);
+    body=tbl([["Return"],["Date"],["Customer"],["Item"],["Reason"],["Result"],["Cases",1],["Credit",1]],T.map(x=>[x.id,dfmt(x.date),CUSTNAME(x.cust),I(x.sku).name,x.reason,x.disp,x.qty,x.rep?"Replacement "+x.rep:money(x.value)]),["Total","","","","","",sumBy(T,x=>x.qty),money(sumBy(T,x=>x.value))]);
   }else if(r==="Damage"){
     title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
     body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Cases",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
@@ -892,15 +914,16 @@ function openStop(id){
   const o=ORDERS.find(x=>x.id===id);dsel=id;podPhoto=false;podSig=false;
   $("#sheet").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 class="display" style="font-size:20px">${CUSTNAME(o.cust)}</h3><button class="iconbtn" data-act="sheet-close" aria-label="Close">${ic("x",20)}</button></div>
   <p style="font-size:13px;color:var(--muted);margin-bottom:10px">${o.id} &middot; Address Line, City A</p>
-  <div class="tw" style="margin-bottom:10px"><table><tbody>${o.lines.map(l=>`<tr><td style="white-space:normal">${I(l.sku).name}</td><td class="num">${l.qty}</td></tr>`).join("")}</tbody></table></div>
+  <div class="tw" style="margin-bottom:10px"><table><tbody>${o.lines.map(l=>`<tr><td style="white-space:normal">${I(l.sku).name}${l.buf?`<br><span class="note">+${l.buf} spare on the truck for replacements</span>`:""}</td><td class="num">${l.qty}</td></tr>`).join("")}</tbody></table></div>
   <div class="sum" style="margin:0 0 12px"><div><span>Order total</span><b>${money(orderTotal(o))}</b></div><div><span>Payment terms</span><span>Net ${CUSTS[o.cust].terms} days</span></div></div>
-  ${o.status==="Out for Delivery"?`<label class="f">Received by<input id="recvBy" placeholder="Receiver Name"></label><button class="photo" id="photoBtn" data-act="photo">${ic("plus",18)}<span>Add delivery photo</span></button><div class="note" style="margin-bottom:4px">Customer signature</div><div class="sigwrap"><canvas id="sig" width="600" height="192" aria-label="Signature area"></canvas><button type="button" data-act="sig-clear">Clear</button></div><button class="btn btn-accent" style="width:100%;justify-content:center" data-act="confirm" data-id="${o.id}">${ic("check",16)}Confirm delivery</button>`:`<p><span class="badge b-ok">Delivered</span> received by ${esc((o.pod&&o.pod.by)||o.receivedBy||"customer representative")}</p><p class="note">Photo ${o.pod&&o.pod.photo?"attached":"not attached"}; signature ${o.pod&&o.pod.sig?"captured":"not captured"}</p>`}`;
+  ${o.status==="Out for Delivery"?`${o.lines.map((l,k)=>l.buf?`<label class="f">Damaged on arrival: ${I(l.sku).name} (max ${l.buf})<input id="dm${k}" type="number" min="0" max="${l.buf}" value="0"></label>`:"").join("")}<label class="f">Received by<input id="recvBy" placeholder="Receiver Name"></label><button class="photo" id="photoBtn" data-act="photo">${ic("plus",18)}<span>Add delivery photo</span></button><div class="note" style="margin-bottom:4px">Customer signature</div><div class="sigwrap"><canvas id="sig" width="600" height="192" aria-label="Signature area"></canvas><button type="button" data-act="sig-clear">Clear</button></div><button class="btn btn-accent" style="width:100%;justify-content:center" data-act="confirm" data-id="${o.id}">${ic("check",16)}Confirm delivery</button>`:`${o.rel?`<p class="note" style="margin-bottom:8px">${o.rel}</p>`:""}<p><span class="badge b-ok">Delivered</span> received by ${esc((o.pod&&o.pod.by)||o.receivedBy||"customer representative")}</p><p class="note">Photo ${o.pod&&o.pod.photo?"attached":"not attached"}; signature ${o.pod&&o.pod.sig?"captured":"not captured"}</p>`}`;
   $("#sheet").classList.add("open");$("#sheetBack").classList.add("open");initSig();
 }
 function sheetClose(){$("#sheet").classList.remove("open");$("#sheetBack").classList.remove("open")}
 function confirmDelivery(id){
   const o=ORDERS.find(x=>x.id===id), by=($("#recvBy").value||"").trim()||"Customer representative";
-  deliver(o,by,{by,photo:podPhoto,sig:podSig});sheetClose();renderDriver();
+  const dmg={};for(let k=0;k<o.lines.length;k++){const el=$("#dm"+k);if(el){const v=Math.max(0,parseInt(el.value)||0);if(v>o.lines[k].buf){toast("Only "+o.lines[k].buf+" spare cases are on the truck for "+I(o.lines[k].sku).name+".");return}dmg[o.lines[k].sku]=v}}
+  deliver(o,by,{by,photo:podPhoto,sig:podSig},dmg);sheetClose();renderDriver();
 }
 
 /* ---------- events ---------- */
@@ -939,7 +962,7 @@ document.addEventListener("click",e=>{
   else if(a==="import")importModal(id);
   else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
   else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
-  else if(a==="csv")csvExport();
+  else if(a==="csv")csvExport();else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
   else if(a==="sup-paid"){SHIPMENTS.find(x=>x.id===id).pay.paid=true;toast(id+" marked as paid.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
