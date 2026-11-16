@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Distribution &amp; Inventory Management System</title>
+<!--
+  Demo: Distribution & Inventory Management System (Port -> Warehouse -> Sales -> Delivery -> Collections)
+  Palette: ink #1C1F2A (primary) / lime #A3E635 (accent) / bone #F3F4EE (background)
+  Fonts: Familjen Grotesk (display) + Public Sans (body)
+  Static demo: no backend, no database, all data hardcoded and generated relative to today (Demo Standard 2.3, 6.4)
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#1C1F2A; --accent:#A3E635; --accent-d:#4D7C0F;
+  --bg:#F3F4EE; --surface:#FFFFFF; --text:#1C1F2A; --muted:#5B6070; --border:#DCDED4;
+  --ok:#2F7D32; --warn:#9A5B00; --bad:#B42318; --info:#3B5BA9;
+  --okbg:#E6F2E6; --warnbg:#FBF0DC; --badbg:#FBE7E4; --infobg:#E7ECF8; --mutebg:#ECEDE6;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:"Public Sans",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5}
+h1,h2,h3,h4,.display{font-family:"Familjen Grotesk",system-ui,sans-serif;font-weight:700;line-height:1.15}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,select{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent-d);outline-offset:2px}
+svg{flex-shrink:0}
+.hidden{display:none!important}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:8px;font-weight:600;border:1px solid transparent;transition:background .15s}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#31364a}
+.btn-accent{background:var(--accent);color:var(--primary)}.btn-accent:hover{background:#b6f04f}
+.btn-ghost{border-color:var(--border);background:var(--surface)}.btn-ghost:hover{background:var(--mutebg)}
+.btn-sm{min-height:34px;padding:0 12px;font-size:13px}
+.badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.b-ok{background:var(--okbg);color:var(--ok)}.b-warn{background:var(--warnbg);color:var(--warn)}
+.b-bad{background:var(--badbg);color:var(--bad)}.b-info{background:var(--infobg);color:var(--info)}.b-mute{background:var(--mutebg);color:var(--muted)}
+
+/* Navigator */
+#navigator{position:fixed;inset:0;z-index:100;background:var(--primary);color:#fff;overflow:auto;display:flex;align-items:center;justify-content:center;padding:24px}
+.nav-inner{max-width:980px;width:100%}
+.nav-inner h1{font-size:clamp(28px,5vw,44px);margin-bottom:8px}
+.nav-inner p.sub{color:#B9BDCB;max-width:620px;margin-bottom:28px}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:28px;font-size:13px;color:#D4D8E4}
+.flow span.step{background:#2A2E3D;padding:4px 12px;border-radius:99px}
+.cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.vcard{background:#262A39;border:1px solid #3A3F52;border-radius:14px;padding:22px;text-align:left;color:#fff;transition:border-color .15s,transform .15s}
+.vcard:hover{border-color:var(--accent);transform:translateY(-2px)}
+.vcard .ic{width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--primary);display:grid;place-items:center;margin-bottom:14px}
+.vcard h3{font-size:19px;margin-bottom:6px}.vcard p{color:#B9BDCB;font-size:14px}
+.nav-note{margin-top:22px;color:#9096A8;font-size:13px}
+
+/* Switcher + badge */
+#switcher{position:fixed;left:12px;bottom:12px;z-index:80;display:flex;gap:2px;background:var(--primary);padding:4px;border-radius:99px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+#switcher button{display:flex;align-items:center;gap:6px;min-height:40px;min-width:40px;padding:0 12px;border-radius:99px;color:#D4D8E4;font-size:13px;font-weight:600;justify-content:center}
+#switcher button.active{background:var(--accent);color:var(--primary)}
+#switcher button:hover:not(.active){background:#31364a}
+#poweredby{position:fixed;right:12px;bottom:12px;z-index:60;background:rgba(28,31,42,.82);color:#E5E7EB;font-size:11px;padding:6px 10px;border-radius:99px;text-decoration:none}
+@media(max-width:560px){#switcher button span.lbl{display:none}#poweredby{font-size:10px;padding:5px 8px}}
+.view{padding-bottom:72px}
+
+/* Toast + modal */
+#toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%) translateY(20px);background:var(--primary);color:#fff;padding:12px 20px;border-radius:10px;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:92vw;text-align:center;font-size:14px;border-left:4px solid var(--accent)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#modalBack{position:fixed;inset:0;background:rgba(20,22,30,.55);z-index:150;display:none;align-items:center;justify-content:center;padding:16px}
+#modalBack.open{display:flex}
+#modal{background:var(--surface);border-radius:14px;width:100%;max-width:640px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#modal header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)}
+#modal header h3{font-size:19px}
+#modal .mb{padding:20px;overflow:auto}
+#modal footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.iconbtn{width:44px;height:44px;border-radius:8px;display:grid;place-items:center}.iconbtn:hover{background:var(--mutebg)}
+
+/* Forms */
+label.f{display:block;font-size:13px;font-weight:600;margin-bottom:12px}
+label.f input,label.f select{display:block;width:100%;margin-top:4px;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff;font-weight:400}
+.grid2{display:grid;gap:0 14px;grid-template-columns:1fr}
+@media(min-width:560px){.grid2{grid-template-columns:1fr 1fr}}
+
+/* PUBLIC VIEW (mobile-first) */
+.pnav{position:sticky;top:0;z-index:40;background:var(--surface);border-bottom:1px solid var(--border)}
+.pnav .row{max-width:1120px;margin:auto;display:flex;align-items:center;gap:10px;padding:8px 16px}
+.brand{display:flex;align-items:center;gap:10px;font-family:"Familjen Grotesk",sans-serif;font-weight:700;font-size:18px;margin-right:auto}
+.brand i{width:32px;height:32px;border-radius:8px;background:var(--primary);color:var(--accent);display:grid;place-items:center}
+.plinks{display:none;gap:22px;font-weight:500}
+.plinks a{text-decoration:none;padding:10px 0}.plinks a:hover{color:var(--accent-d)}
+#pburger{display:grid}
+#pmenu{display:none;border-top:1px solid var(--border);background:var(--surface);padding:8px 16px 14px}
+#pmenu.open{display:block}
+#pmenu a{display:block;padding:12px 0;text-decoration:none;font-weight:500;border-bottom:1px solid var(--border)}
+@media(min-width:860px){.plinks{display:flex}#pburger{display:none}#pmenu{display:none!important}}
+.hero{background:var(--primary);color:#fff;padding:48px 16px}
+.hero .in{max-width:1120px;margin:auto;display:grid;gap:28px}
+.hero h1{font-size:clamp(32px,7vw,56px);max-width:760px}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{color:#C3C7D4;max-width:560px;margin:14px 0 22px;font-size:17px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stats div{background:#262A39;border-radius:12px;padding:14px}
+.stats b{display:block;font-family:"Familjen Grotesk",sans-serif;font-size:26px;color:var(--accent)}
+.stats span{font-size:12px;color:#B9BDCB}
+.sec{padding:48px 16px}.sec .in{max-width:1120px;margin:auto}
+.sec h2{font-size:clamp(26px,5vw,36px);margin-bottom:8px}.sec .lead{color:var(--muted);margin-bottom:26px;max-width:620px}
+.feat{display:grid;gap:14px;grid-template-columns:1fr}
+.feat .c{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.feat .c .ic{width:40px;height:40px;border-radius:8px;background:var(--primary);color:var(--accent);display:grid;place-items:center;margin-bottom:12px}
+.feat h3{font-size:18px;margin-bottom:4px}.feat p{color:var(--muted);font-size:14px}
+.prods{display:grid;gap:14px;grid-template-columns:1fr}
+.prod{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:6px}
+.prod .pic{height:90px;border-radius:8px;background:var(--mutebg);display:grid;place-items:center;color:var(--muted)}
+.prod h3{font-size:16px}.prod .meta{font-size:13px;color:var(--muted)}.prod .pr{font-weight:600}
+.prod .row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:8px}
+.how{display:grid;gap:14px;grid-template-columns:1fr;counter-reset:s}
+.how .c{background:var(--surface);border-radius:var(--radius);padding:18px;border-left:5px solid var(--accent);counter-increment:s}
+.how .c::before{content:counter(s);font-family:"Familjen Grotesk",sans-serif;font-weight:700;font-size:22px;color:var(--accent-d);display:block}
+.how h3{font-size:17px}.how p{font-size:14px;color:var(--muted)}
+.quotes{display:grid;gap:14px;grid-template-columns:1fr}
+.quotes blockquote{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;font-size:14px}
+.quotes cite{display:block;margin-top:10px;font-style:normal;font-weight:600;font-size:13px;color:var(--muted)}
+.pfoot{background:var(--primary);color:#B9BDCB;padding:32px 16px;font-size:14px}.pfoot .in{max-width:1120px;margin:auto}
+@media(min-width:640px){.feat,.prods,.how,.quotes{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:960px){.feat,.how{grid-template-columns:repeat(4,1fr)}.prods{grid-template-columns:repeat(4,1fr)}.quotes{grid-template-columns:repeat(3,1fr)}.hero .in{grid-template-columns:1.4fr 1fr;align-items:center}}
+
+/* CONSOLE (desktop-first back office) */
+#view-console{display:grid;grid-template-columns:244px 1fr;min-height:100vh}
+#side{background:var(--primary);color:#D4D8E4;position:sticky;top:0;height:100vh;overflow:auto;padding:18px 12px;z-index:70}
+#side .brand{color:#fff;padding:4px 8px 18px}
+#side .grp{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#8B91A5;padding:14px 10px 6px}
+#side button.nl{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:0 10px;border-radius:8px;text-align:left;font-weight:500}
+#side button.nl:hover{background:#2A2E3D}
+#side button.nl.active{background:var(--accent);color:var(--primary);font-weight:600}
+#sideBack{position:fixed;inset:0;background:rgba(20,22,30,.55);z-index:65;display:none}
+.main{min-width:0}
+.top{display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:30}
+.top h1{font-size:22px;margin-right:auto}
+.top .search{position:relative}.top .search input{min-height:40px;width:220px;padding:0 12px 0 36px;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.top .search svg{position:absolute;left:10px;top:11px;color:var(--muted)}
+#hamb{display:none}
+#page{padding:24px}
+.kpis{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.kpi .k{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.kpi .v{font-family:"Familjen Grotesk",sans-serif;font-size:26px;font-weight:700;margin-top:4px}
+.kpi .s{font-size:12px;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px}
+.panel h2{font-size:18px;margin-bottom:12px}
+.two{display:grid;gap:20px;grid-template-columns:1.4fr 1fr}
+.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px}
+.pipe button{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:left;position:relative}
+.pipe button:hover{border-color:var(--primary)}
+.pipe button .n{font-family:"Familjen Grotesk",sans-serif;font-size:24px;font-weight:700}
+.pipe button .t{font-size:13px;font-weight:600}.pipe button .d{font-size:12px;color:var(--muted)}
+.pipe button .st{font-size:11px;font-weight:700;color:var(--accent-d);text-transform:uppercase;letter-spacing:.06em}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.filters button{min-height:36px;padding:0 14px;border-radius:99px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:600}
+.filters button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right}
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:130px 1fr 70px;align-items:center;gap:10px;font-size:13px}
+.bar .tr{height:14px;background:var(--mutebg);border-radius:99px;overflow:hidden}.bar .fl{height:100%;background:var(--primary);border-radius:99px}
+.feed{list-style:none;display:grid;gap:12px}
+.feed li{display:flex;gap:10px;font-size:14px}.feed .dot{width:10px;height:10px;border-radius:50%;background:var(--accent-d);margin-top:6px;flex-shrink:0}
+.feed small{display:block;color:var(--muted);font-size:12px}
+.tl{list-style:none;display:grid;gap:10px;margin-bottom:16px}
+.tl li{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--muted)}
+.tl li .c{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:grid;place-items:center;flex-shrink:0}
+.tl li.done{color:var(--text)}.tl li.done .c{background:var(--accent-d);border-color:var(--accent-d);color:#fff}
+.tl li.cur{color:var(--text);font-weight:600}.tl li.cur .c{border-color:var(--accent-d);background:var(--accent)}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-bottom:14px;font-size:14px}.kv b{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.sum{display:grid;gap:6px;margin-top:12px;font-size:14px}.sum div{display:flex;justify-content:space-between}.sum .tot{font-weight:700;border-top:1px solid var(--border);padding-top:8px}
+.check{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:14px;font-weight:500}.check input{width:20px;height:20px}
+@media(max-width:1000px){.two{grid-template-columns:1fr}.pipe{grid-template-columns:1fr 1fr}}
+@media(max-width:820px){
+  #view-console{grid-template-columns:1fr}
+  #side{position:fixed;left:0;top:0;width:262px;transform:translateX(-100%);transition:transform .2s}
+  #side.open{transform:none}
+  #sideBack.open{display:block}
+  #hamb{display:grid}
+  .top{padding:10px 14px}.top .search{display:none}.top h1{font-size:19px}
+  #page{padding:14px}
+  .bar{grid-template-columns:96px 1fr 56px}
+}
+.usage{height:8px;background:var(--mutebg);border-radius:99px;overflow:hidden;min-width:90px}.usage i{display:block;height:100%;background:var(--ok)}.usage.warn i{background:var(--warn)}.usage.bad i{background:var(--bad)}
+.sigwrap{border:1px dashed var(--muted);border-radius:8px;background:#fff;position:relative;margin-bottom:12px}
+.sigwrap canvas{display:block;width:100%;height:96px;touch-action:none}
+.sigwrap button{position:absolute;right:6px;top:6px;font-size:12px;min-height:30px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:#fff}
+.photo{display:flex;align-items:center;gap:10px;min-height:44px;width:100%;border:1px dashed var(--muted);border-radius:8px;padding:0 12px;margin-bottom:12px;background:#fff;font-weight:600;font-size:14px}
+.photo.done{border-style:solid;border-color:var(--ok);color:var(--ok);background:var(--okbg)}
+.note{font-size:12px;color:var(--muted)}
+.cartbtn{white-space:nowrap}
+@media(max-width:420px){.brand{font-size:15px;min-width:0}.pnav .row{gap:6px;padding:8px 10px}.cartbtn{padding:0 10px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* DRIVER APP (device-framed) */
+.drv{display:flex;align-items:center;justify-content:center;gap:40px;padding:28px 16px;min-height:100vh;background:radial-gradient(circle at 20% 20%,#2A2E3D,var(--primary))}
+.drv .cap{color:#D4D8E4;max-width:280px}.drv .cap h2{font-size:26px;color:#fff;margin-bottom:8px}.drv .cap p{color:#B9BDCB;font-size:15px;margin-bottom:10px}
+.phone{width:390px;height:780px;border:10px solid #0D0F16;border-radius:46px;background:var(--bg);overflow:hidden;position:relative;display:flex;flex-direction:column;flex-shrink:0;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.ap-h{background:var(--primary);color:#fff;padding:18px 18px 16px}.ap-h small{color:#B9BDCB}.ap-h h3{font-size:22px}
+.ap-b{flex:1;overflow:auto;padding:14px;display:grid;gap:12px;align-content:start}
+.dcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left;width:100%;display:grid;gap:4px}
+.dcard .r{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.tabbar{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border);background:var(--surface)}
+.tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:600;color:var(--muted)}
+.tabbar button.active{color:var(--primary);box-shadow:inset 0 3px 0 var(--accent)}
+.sheetBack{position:absolute;inset:0;background:rgba(20,22,30,.5);display:none;z-index:5}.sheetBack.open{display:block}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:20px 20px 0 0;padding:18px;z-index:6;transform:translateY(105%);transition:transform .25s;max-height:85%;overflow:auto}
+.sheet.open{transform:none}
+@media(max-width:900px){.drv .cap{display:none}}
+@media(max-width:480px){.drv{padding:0;min-height:0}.phone{width:100%;height:calc(100vh - 68px);border:0;border-radius:0}}
+</style>
+</head>
+<body>
+
+<!-- NAVIGATOR -->
+<div id="navigator" role="dialog" aria-label="Demo views">
+  <div class="nav-inner">
+    <h1 class="display">Distribution &amp; Inventory Management System</h1>
+    <p class="sub">Follow stock from the port to the warehouse, track what goes out per item, confirm delivery to the customer, then collect payment on 30, 45 or 60 day terms.</p>
+    <div class="flow" aria-label="Process flow">
+      <span class="step">Port</span>&rarr;<span class="step">Warehouse</span>&rarr;<span class="step">Sales per item</span>&rarr;<span class="step">Delivery</span>&rarr;<span class="step">Collections</span>
+    </div>
+    <div class="cards">
+      <button class="vcard" data-act="go" data-id="public"><div class="ic" data-ic="cart" data-s="22"></div><h3>Customer Order Portal</h3><p>What a retailer sees: live availability, credit terms and order requests.</p></button>
+      <button class="vcard" data-act="go" data-id="console"><div class="ic" data-ic="layers" data-s="22"></div><h3>Operations Console</h3><p>Inbound shipments with landed cost, stock and transfers, sales with credit control, deliveries and collections.</p></button>
+      <button class="vcard" data-act="go" data-id="driver"><div class="ic" data-ic="phone" data-s="22"></div><h3>Driver App</h3><p>Phone view for confirming deliveries with photo and signature. Confirm one and watch the invoice appear in Collections.</p></button>
+    </div>
+    <p class="nav-note">Everything is clickable. Use the switcher at the bottom left to jump between views at any time. All names and figures are sample data.</p>
+  </div>
+</div>
+
+<!-- SWITCHER + BADGE -->
+<nav id="switcher" class="hidden" aria-label="Switch view">
+  <button data-act="menu" aria-label="Back to menu"><span data-ic="back" data-s="16"></span><span class="lbl">Menu</span></button>
+  <button data-act="go" data-id="public" data-sw="public" aria-label="Customer Order Portal"><span data-ic="cart" data-s="16"></span><span class="lbl">Portal</span></button>
+  <button data-act="go" data-id="console" data-sw="console" aria-label="Operations Console"><span data-ic="layers" data-s="16"></span><span class="lbl">Console</span></button>
+  <button data-act="go" data-id="driver" data-sw="driver" aria-label="Driver App"><span data-ic="phone" data-s="16"></span><span class="lbl">Driver</span></button>
+</nav>
+<a id="poweredby" href="https://theloftitsolutions.com" target="_blank" rel="noopener">Powered by The Loft IT Solutions</a>
+
+<!-- PUBLIC VIEW -->
+<div id="view-public" class="view hidden">
+  <header class="pnav">
+    <div class="row">
+      <div class="brand"><i data-ic="box" data-s="18"></i>Company A Distribution</div>
+      <nav class="plinks" aria-label="Main">
+        <a href="#p-catalog" data-act="scroll">Catalog</a><a href="#p-how" data-act="scroll">How it works</a><a href="#p-terms" data-act="scroll">Credit terms</a><a href="#p-contact" data-act="scroll">Contact</a>
+      </nav>
+      <button class="btn btn-accent btn-sm cartbtn" data-act="cart-open" style="min-height:44px"><span data-ic="cart" data-s="16"></span>Order list (<span id="cartN">0</span>)</button>
+      <button id="pburger" class="iconbtn" data-act="pmenu" aria-label="Open menu"><span data-ic="menu" data-s="22"></span></button>
+    </div>
+    <div id="pmenu"><a href="#p-catalog" data-act="scroll">Catalog</a><a href="#p-how" data-act="scroll">How it works</a><a href="#p-terms" data-act="scroll">Credit terms</a><a href="#p-contact" data-act="scroll">Contact</a></div>
+  </header>
+  <section class="hero"><div class="in">
+    <div>
+      <h1 class="display">Stock your shelves. <em>Pay on 30, 45 or 60 days.</em></h1>
+      <p>Order from the full catalog, see what is on the shelf in our warehouses right now, and get it delivered to your store with a signed receipt.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-accent" data-act="scroll" data-href="#p-catalog">Place an order</button>
+      <button class="btn btn-ghost" style="background:transparent;color:#fff;border-color:#4A5068" data-act="scroll" data-href="#p-contact">Open a trade account</button></div>
+    </div>
+    <div class="stats"><div><b>2</b><span>Warehouses</span></div><div><b>10</b><span>Product lines</span></div><div><b>30-60</b><span>Day credit terms</span></div></div>
+  </div></section>
+  <section class="sec"><div class="in">
+    <div class="feat">
+      <div class="c"><div class="ic" data-ic="layers" data-s="20"></div><h3>Live availability</h3><p>Every product shows whether it is in stock, running low or arriving soon.</p></div>
+      <div class="c"><div class="ic" data-ic="truck" data-s="20"></div><h3>Tracked delivery</h3><p>See when your order is packed, out for delivery and received at your store.</p></div>
+      <div class="c"><div class="ic" data-ic="card" data-s="20"></div><h3>Credit terms</h3><p>Pay 30, 45 or 60 days after delivery, depending on your trade account.</p></div>
+      <div class="c"><div class="ic" data-ic="file" data-s="20"></div><h3>Clear statements</h3><p>Invoices, due dates and balances in one place, with no surprises.</p></div>
+    </div>
+  </div></section>
+  <section class="sec" id="p-catalog" style="padding-top:0"><div class="in">
+    <h2 class="display">Catalog</h2><p class="lead">Prices are per case. Availability updates as stock arrives from port and leaves for delivery.</p>
+    <div class="prods" id="prods"></div>
+  </div></section>
+  <section class="sec" id="p-how" style="background:var(--mutebg)"><div class="in">
+    <h2 class="display">How ordering works</h2><p class="lead">From request to receipt in four steps.</p>
+    <div class="how">
+      <div class="c"><h3>Build your order list</h3><p>Pick products and quantities from the catalog.</p></div>
+      <div class="c"><h3>We confirm and pack</h3><p>Our team confirms stock and packs from the nearest warehouse.</p></div>
+      <div class="c"><h3>Delivered to your store</h3><p>Our driver delivers and records who received the goods.</p></div>
+      <div class="c"><h3>Pay on your terms</h3><p>Your invoice is due 30, 45 or 60 days from the delivery date.</p></div>
+    </div>
+  </div></section>
+  <section class="sec" id="p-terms"><div class="in">
+    <h2 class="display">Credit terms</h2><p class="lead">Terms are set per trade account after a short review.</p>
+    <div class="quotes">
+      <blockquote>"Net 30 keeps our cash flow simple for fast-moving items."<cite>Sample Client, Retailer</cite></blockquote>
+      <blockquote>"Net 45 lets us sell through a delivery before the invoice falls due."<cite>Sample Client, Store Owner</cite></blockquote>
+      <blockquote>"Net 60 on pallet orders made bulk buying realistic for us."<cite>Sample Client, Wholesale Buyer</cite></blockquote>
+    </div>
+  </div></section>
+  <section class="sec" id="p-contact" style="background:var(--mutebg)"><div class="in" style="max-width:640px">
+    <h2 class="display">Open a trade account</h2><p class="lead">Tell us about your business and we will set up your account and terms.</p>
+    <form id="acctForm" class="panel" style="padding:20px">
+      <div class="grid2"><label class="f">Your Name<input required placeholder="Your Name"></label><label class="f">Your Company<input required placeholder="Your Company"></label>
+      <label class="f">Email<input type="email" required placeholder="you@example.com"></label><label class="f">Mobile<input placeholder="+63 900 000 0001"></label></div>
+      <label class="f">Preferred credit terms<select><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>
+      <button class="btn btn-primary" type="submit">Submit application</button>
+    </form>
+  </div></section>
+  <footer class="pfoot"><div class="in">Company A Distribution &middot; Address Line, City A &middot; contact@companya.example &middot; +63 900 000 0001</div></footer>
+</div>
+
+<!-- CONSOLE -->
+<div id="view-console" class="view hidden" style="padding-bottom:0">
+  <aside id="side" aria-label="Sidebar">
+    <div class="brand"><i data-ic="box" data-s="18"></i>Distribution</div>
+    <div class="grp">Main</div>
+    <button class="nl active" data-act="page" data-id="dash"><span data-ic="home" data-s="18"></span>Dashboard</button>
+    <button class="nl" data-act="page" data-id="inbound"><span data-ic="anchor" data-s="18"></span>Inbound Shipments</button>
+    <button class="nl" data-act="page" data-id="inventory"><span data-ic="layers" data-s="18"></span>Inventory</button>
+    <button class="nl" data-act="page" data-id="sales"><span data-ic="truck" data-s="18"></span>Sales &amp; Deliveries</button>
+    <button class="nl" data-act="page" data-id="collections"><span data-ic="card" data-s="18"></span>Collections</button>
+    <div class="grp">Settings</div>
+    <button class="nl" data-act="page" data-id="settings"><span data-ic="sliders" data-s="18"></span>Settings</button>
+    <button class="nl" data-act="page" data-id="users"><span data-ic="users" data-s="18"></span>Users</button>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <button id="hamb" class="iconbtn" data-act="side-toggle" aria-label="Open sidebar"><span data-ic="menu" data-s="22"></span></button>
+      <h1 id="pageTitle" class="display">Dashboard</h1>
+      <div class="search"><span data-ic="search" data-s="16"></span><input placeholder="Search shipments, SKUs, orders" aria-label="Search"></div>
+      <button class="iconbtn" data-act="alerts" aria-label="Notifications"><span data-ic="bell" data-s="20"></span></button>
+    </div>
+    <main id="page"></main>
+  </div>
+</div>
+<div id="sideBack" data-act="side-toggle"></div>
+
+<!-- DRIVER -->
+<div id="view-driver" class="view hidden">
+  <div class="drv">
+    <div class="cap"><h2 class="display">Driver App</h2><p>Drivers see their route, open a stop and confirm delivery with the name of the person who received the goods.</p><p>Confirm a delivery here, then open Collections in the Console: the invoice is created with its due date already counted from today.</p></div>
+    <div class="phone">
+      <div class="ap-h"><small id="drvDate"></small><h3 class="display" id="drvTitle">Today's route</h3></div>
+      <div class="ap-b" id="drvBody"></div>
+      <div class="tabbar">
+        <button class="active" data-act="dtab" data-id="todo"><span data-ic="truck" data-s="20"></span>To deliver</button>
+        <button data-act="dtab" data-id="done"><span data-ic="check" data-s="20"></span>Delivered</button>
+      </div>
+      <div class="sheetBack" id="sheetBack" data-act="sheet-close"></div>
+      <div class="sheet" id="sheet"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modalBack"><div id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle"><header><h3 id="mTitle"></h3><button class="iconbtn" data-act="modal-close" aria-label="Close"><span data-ic="x" data-s="20"></span></button></header><div class="mb" id="mBody"></div><footer id="mFoot"></footer></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const PHP=new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:0});
+const money=n=>PHP.format(n);
+const NUM=new Intl.NumberFormat("en-PH");
+const dfmt=d=>d.toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric",timeZone:"Asia/Manila"});
+const addDays=n=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+n);return d};
+const TODAY=addDays(0);
+const dayDiff=(a,b)=>Math.round((a-b)/864e5);
+const ICONS={
+ home:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+ anchor:'<circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/>',
+ box:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>',
+ layers:'<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>',
+ truck:'<path d="M1 3h15v13H1zM16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+ card:'<rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/>',
+ sliders:'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+ users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+ search:'<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>',
+ bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>',
+ menu:'<path d="M3 12h18M3 6h18M3 18h18"/>',
+ x:'<path d="M18 6L6 18M6 6l12 12"/>',
+ check:'<path d="M20 6L9 17l-5-5"/>',
+ back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+ file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+ phone:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
+ cart:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
+ alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+ pin:'<path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>'
+};
+const ic=(n,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]||""}</svg>`;
+function paintIcons(root=document){$$("[data-ic]",root).forEach(e=>{if(!e.firstChild){e.innerHTML=ic(e.dataset.ic,+e.dataset.s||18)}})}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("show"),4000)}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- sample data (generic, relative to today) ---------- */
+const ITEMS=[
+ {sku:"SKU-1001",name:"Product A1 (24 pcs/case)",cost:340,price:480,reorder:120,stock:{A:520,B:210}},
+ {sku:"SKU-1002",name:"Product A2 (24 pcs/case)",cost:370,price:520,reorder:100,stock:{A:300,B:140}},
+ {sku:"SKU-1003",name:"Product B1 (12 pcs/case)",cost:700,price:960,reorder:80,stock:{A:180,B:90}},
+ {sku:"SKU-1004",name:"Product B2 (12 pcs/case)",cost:740,price:1010,reorder:80,stock:{A:150,B:70}},
+ {sku:"SKU-1005",name:"Product C1 (6 pcs/case)",cost:1080,price:1450,reorder:60,stock:{A:25,B:18}},
+ {sku:"SKU-1006",name:"Product C2 (6 pcs/case)",cost:1130,price:1520,reorder:60,stock:{A:70,B:40}},
+ {sku:"SKU-1007",name:"Product D1 (48 pcs/case)",cost:260,price:380,reorder:150,stock:{A:800,B:500}},
+ {sku:"SKU-1008",name:"Product D2 (48 pcs/case)",cost:290,price:410,reorder:150,stock:{A:640,B:300}},
+ {sku:"SKU-1009",name:"Product E1 (pallet pack)",cost:6700,price:8900,reorder:12,stock:{A:6,B:4}},
+ {sku:"SKU-1010",name:"Product E2 (pallet pack)",cost:7100,price:9400,reorder:12,stock:{A:9,B:5}}
+];
+const I=sku=>ITEMS.find(i=>i.sku===sku);
+const WH={A:"Warehouse A",B:"Warehouse B"};
+const STAGES=[
+ {k:"At Sea",t:"Sailing to port",cls:"b-info"},{k:"At Port",t:"Arrived at port",cls:"b-info"},
+ {k:"Customs",t:"Customs clearance",cls:"b-warn"},{k:"In Transit",t:"Trucking to warehouse",cls:"b-warn"},
+ {k:"Received",t:"Received at warehouse",cls:"b-ok"}
+];
+const L=(a)=>a.map(([n,q])=>({sku:"SKU-"+n,qty:q}));
+const SHIPMENTS=[
+ {id:"SHP-2411",container:"CNT-000411",supplier:"Supplier A",port:"Port A",eta:addDays(9),stage:0,wh:"A",costs:{freight:96000,duties:62000,brokerage:18000,port:10000},lines:L([[1001,400],[1003,200],[1007,600]])},
+ {id:"SHP-2410",container:"CNT-000410",supplier:"Supplier B",port:"Port A",eta:addDays(2),stage:2,wh:"A",costs:{freight:120000,duties:90000,brokerage:21000,port:10000},lines:L([[1005,150],[1006,150],[1009,10]])},
+ {id:"SHP-2409",container:"CNT-000409",supplier:"Supplier A",port:"Port B",eta:addDays(1),stage:3,wh:"B",costs:{freight:70000,duties:42000,brokerage:12000,port:8000},lines:L([[1002,300],[1004,200]])},
+ {id:"SHP-2408",container:"CNT-000408",supplier:"Supplier C",port:"Port A",eta:addDays(0),stage:1,wh:"A",costs:{freight:98000,duties:72000,brokerage:18000,port:10000},lines:L([[1008,500],[1010,8]])},
+ {id:"SHP-2407",container:"CNT-000407",supplier:"Supplier A",port:"Port B",eta:addDays(-6),stage:4,wh:"B",costs:{freight:62000,duties:38000,brokerage:11000,port:8000},lines:L([[1001,300],[1007,400]])},
+ {id:"SHP-2406",container:"CNT-000406",supplier:"Supplier B",port:"Port A",eta:addDays(-14),stage:4,wh:"A",costs:{freight:80000,duties:52000,brokerage:13000,port:9000},lines:L([[1003,150],[1004,120],[1006,60]])}
+];
+const CUSTS={
+ 1:{name:"Customer A",terms:30,limit:150000},2:{name:"Customer B",terms:60,limit:175000},3:{name:"Customer C",terms:45,limit:200000},4:{name:"Customer D",terms:30,limit:100000},
+ 5:{name:"Customer E",terms:60,limit:150000},6:{name:"Customer F",terms:45,limit:150000},7:{name:"Customer G",terms:30,limit:100000},8:{name:"Customer H",terms:60,limit:100000}
+};
+const TRANSFERS=[
+ {id:"TRF-300",sku:"SKU-1007",qty:100,from:"A",to:"B",date:addDays(-5),status:"Received"},
+ {id:"TRF-301",sku:"SKU-1003",qty:30,from:"A",to:"B",date:addDays(-1),status:"In Transit"}
+];
+let trfSeq=301;
+const ORDERS=[]; const INVOICES=[];
+let soSeq=1016, invSeq=5010;
+function mkOrder(id,cust,ago,lines,status,wh,driver){
+  const o={id:"SO-"+id,cust,date:addDays(-ago-(status==="Delivered"?2:0)),lines:L(lines),status,wh,driver:driver||"Driver A",delivered:status==="Delivered"?addDays(-ago):null,receivedBy:"",pod:status==="Delivered"?{by:"Customer representative",photo:true,sig:true}:null};
+  ORDERS.push(o);return o;
+}
+function mkInvoice(o,paidPct,pm){
+  const terms=CUSTS[o.cust].terms, amount=orderTotal(o);
+  const inv={id:"INV-"+(invSeq++),so:o.id,cust:o.cust,issued:o.delivered,terms,due:new Date(o.delivered.getTime()+terms*864e5),amount,paid:0,payments:[]};
+  if(paidPct){const a=Math.round(amount*paidPct);inv.paid=a;inv.payments.push({date:addDays(-1),amt:a,method:pm||"Bank transfer",ref:"REF-"+(100+invSeq)})}
+  INVOICES.push(inv);return inv;
+}
+const orderTotal=o=>o.lines.reduce((s,l)=>s+l.qty*I(l.sku).price,0);
+[[1001,2,75,[[1001,80],[1003,40],[1007,100]],"A",0],[1002,1,85,[[1002,60],[1005,20]],"A",0],[1003,3,40,[[1004,50],[1006,15],[1008,80]],"B",.3],
+ [1004,4,100,[[1001,40],[1002,40]],"A",0],[1005,5,20,[[1009,3],[1003,30]],"A",0],[1006,6,12,[[1007,120],[1008,120]],"B",0],
+ [1007,7,5,[[1005,10],[1006,10],[1001,30]],"A",0],[1008,8,24,[[1010,2],[1004,25]],"A",0],
+ [1009,1,100,[[1003,60],[1002,50]],"B",1],[1010,3,3,[[1001,30],[1008,60]],"A",.3]
+].forEach(r=>{const o=mkOrder(r[0],r[1],r[2],r[3],"Delivered",r[4],r[0]%2?"Driver A":"Driver B");mkInvoice(o,r[5])});
+mkOrder(1011,2,0,[[1001,50],[1007,80]],"Out for Delivery","A","Driver A");
+mkOrder(1012,5,0,[[1005,12],[1009,2]],"Out for Delivery","A","Driver B");
+mkOrder(1013,3,0,[[1002,40]],"Packed","B","Driver A");
+mkOrder(1014,6,0,[[1006,18],[1004,20]],"Pending","A","Driver B");
+mkOrder(1015,1,0,[[1003,25],[1007,60],[1008,60]],"Pending","B","Driver A");
+mkOrder(1016,2,0,[[1009,3],[1005,10]],"Credit Hold","A","Driver B");
+const invStatus=i=>{const bal=i.amount-i.paid;if(bal<=0)return "Paid";const d=dayDiff(i.due,TODAY);return d<0?"Overdue":d<=7?"Due Soon":"Current"};
+const invBadge={Paid:"b-ok",Overdue:"b-bad","Due Soon":"b-warn",Current:"b-info"};
+const ordBadge={Pending:"b-mute",Packed:"b-info","Out for Delivery":"b-warn",Delivered:"b-ok","Credit Hold":"b-bad"};
+const invOf=so=>INVOICES.find(i=>i.so===so);
+const totalStock=i=>i.stock.A+i.stock.B;
+const incoming=sku=>SHIPMENTS.filter(s=>s.stage<4).reduce((n,s)=>n+s.lines.filter(l=>l.sku===sku).reduce((m,l)=>m+l.qty,0),0);
+const stockState=i=>{const t=totalStock(i);return t===0?["Out","b-bad"]:t<=i.reorder?["Low","b-warn"]:["OK","b-ok"]};
+const extraOf=s=>Object.values(s.costs).reduce((a,b)=>a+b,0);
+const shipCost=s=>s.lines.reduce((n,l)=>n+l.qty*I(l.sku).cost,0)+extraOf(s);
+const CUSTNAME=id=>CUSTS[id].name;
+
+/* ---------- view control ---------- */
+let current=null;
+function showView(v){
+  current=v;
+  $("#navigator").classList.add("hidden");$("#switcher").classList.remove("hidden");
+  ["public","console","driver"].forEach(x=>$("#view-"+x).classList.toggle("hidden",x!==v));
+  $$("#switcher [data-sw]").forEach(b=>b.classList.toggle("active",b.dataset.sw===v));
+  window.scrollTo(0,0);
+  if(v==="public")renderCatalog(); if(v==="console")renderPage(); if(v==="driver")renderDriver();
+}
+function showMenu(){$("#navigator").classList.remove("hidden");$("#switcher").classList.add("hidden");["public","console","driver"].forEach(x=>$("#view-"+x).classList.add("hidden"))}
+
+/* ---------- modal ---------- */
+function openModal(title,body,foot){$("#mTitle").textContent=title;$("#mBody").innerHTML=body;$("#mFoot").innerHTML=foot||`<button class="btn btn-ghost" data-act="modal-close">Close</button>`;$("#modalBack").classList.add("open");paintIcons($("#modal"))}
+function closeModal(){$("#modalBack").classList.remove("open")}
+$("#modalBack").addEventListener("click",e=>{if(e.target.id==="modalBack")closeModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();sheetClose();$("#side").classList.remove("open");$("#sideBack").classList.remove("open")}});
+
+/* ---------- PUBLIC ---------- */
+const cart={};
+function availBadge(i){const t=totalStock(i);if(t===0)return incoming(i.sku)?`<span class="badge b-info">Arriving soon</span>`:`<span class="badge b-bad">Out of stock</span>`;return t<=i.reorder?`<span class="badge b-warn">Low stock</span>`:`<span class="badge b-ok">In stock</span>`}
+function renderCatalog(){
+  $("#prods").innerHTML=ITEMS.map(i=>`<div class="prod"><div class="pic">${ic("box",36)}</div><h3>${i.name}</h3><div class="meta">${i.sku}</div><div class="pr">${money(i.price)} <span class="meta">/ case</span></div>${availBadge(i)}<div class="row"><span class="meta">${cart[i.sku]?cart[i.sku]+" in list":""}</span><button class="btn btn-primary btn-sm" data-act="add" data-id="${i.sku}">${ic("plus",14)}Add</button></div></div>`).join("");
+  $("#cartN").textContent=Object.values(cart).reduce((a,b)=>a+b,0);
+}
+function openCart(){
+  const keys=Object.keys(cart);
+  if(!keys.length){openModal("Your order list",`<p>Your list is empty. Add products from the catalog.</p>`);return}
+  const total=keys.reduce((n,k)=>n+cart[k]*I(k).price,0);
+  openModal("Your order list",`<div class="tw"><table><thead><tr><th>Product</th><th class="num">Cases</th><th class="num">Amount</th></tr></thead><tbody>${keys.map(k=>`<tr><td>${I(k).name}</td><td class="num">${cart[k]}</td><td class="num">${money(cart[k]*I(k).price)}</td></tr>`).join("")}</tbody></table></div><div class="sum"><div class="tot"><span>Estimated total</span><span>${money(total)}</span></div></div><label class="f" style="margin-top:14px">Payment terms<select><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label>`,
+  `<button class="btn btn-ghost" data-act="cart-clear">Clear list</button><button class="btn btn-accent" data-act="cart-submit">Send order request</button>`);
+}
+
+/* ---------- CONSOLE ---------- */
+const PAGES={dash:"Dashboard",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users"};
+let page="dash"; const FIL={inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders"};
+function setPage(p){page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
+function renderPage(){
+  $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
+  const R={dash:rDash,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers};
+  $("#page").innerHTML=R[page]();paintIcons($("#page"));
+}
+const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
+const kpi=(icn,k,v,s)=>`<div class="kpi"><div class="k">${ic(icn,16)}${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
+function unitsOut(days){
+  const m={};ORDERS.filter(o=>(o.status==="Delivered"||o.status==="Out for Delivery")&&dayDiff(TODAY,o.delivered||o.date)<=days).forEach(o=>o.lines.forEach(l=>{m[l.sku]=m[l.sku]||{q:0,v:0};m[l.sku].q+=l.qty;m[l.sku].v+=l.qty*I(l.sku).price}));
+  return Object.entries(m).map(([sku,x])=>({sku,...x})).sort((a,b)=>b.v-a.v);
+}
+const outstanding=()=>INVOICES.reduce((n,i)=>n+(i.amount-i.paid),0);
+const overdueAmt=()=>INVOICES.filter(i=>invStatus(i)==="Overdue").reduce((n,i)=>n+(i.amount-i.paid),0);
+function rDash(){
+  const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), val=ITEMS.reduce((n,i)=>n+totalStock(i)*i.cost,0);
+  const inb=SHIPMENTS.filter(s=>s.stage<4).length, openSO=ORDERS.filter(o=>o.status!=="Delivered").length, ofd=ORDERS.filter(o=>o.status==="Out for Delivery").length;
+  const uo=unitsOut(30).slice(0,6), mx=Math.max(1,...uo.map(x=>x.q));
+  return `<div class="kpis">${kpi("layers","Stock value (at cost)",money(val),NUM.format(units)+" cases on hand")}${kpi("anchor","Inbound shipments",inb,"Port to warehouse")}${kpi("truck","Orders to fulfil",openSO,ofd+" out for delivery")}${kpi("card","Receivables",money(outstanding()),"Open invoices")}${kpi("alert","Overdue",money(overdueAmt()),INVOICES.filter(i=>invStatus(i)==="Overdue").length+" invoices")}</div>
+  <div class="pipe">
+   <button data-act="page" data-id="inbound"><div class="st">1 Port</div><div class="n">${inb}</div><div class="t">Shipments inbound</div><div class="d">Sea, port, customs, trucking</div></button>
+   <button data-act="page" data-id="inventory"><div class="st">2 Warehouse</div><div class="n">${NUM.format(units)}</div><div class="t">Cases in stock</div><div class="d">${ITEMS.filter(i=>stockState(i)[0]!=="OK").length} items at or below reorder</div></button>
+   <button data-act="page" data-id="sales"><div class="st">3 Sales</div><div class="n">${NUM.format(uo.reduce((n,x)=>n+x.q,0))}</div><div class="t">Cases out (30 days)</div><div class="d">Counted per item</div></button>
+   <button data-act="page" data-id="sales"><div class="st">4 Delivery</div><div class="n">${ofd}</div><div class="t">Out for delivery</div><div class="d">${openSO-ofd} waiting to dispatch</div></button>
+   <button data-act="page" data-id="collections"><div class="st">5 Collections</div><div class="n">${money(outstanding())}</div><div class="t">To collect</div><div class="d">30 / 45 / 60 day terms</div></button>
+  </div>
+  <div class="two"><div class="panel"><h2>Cases out by item (last 30 days)</h2><div class="bars">${uo.map(x=>`<div class="bar"><span>${I(x.sku).name.split(" (")[0]}</span><div class="tr"><div class="fl" style="width:${Math.round(x.q/mx*100)}%"></div></div><b>${NUM.format(x.q)}</b></div>`).join("")}</div></div>
+  <div class="panel"><h2>Recent activity</h2><ul class="feed">
+   <li><span class="dot"></span><div>SHP-2408 arrived at Port A<small>Today</small></div></li>
+   <li><span class="dot"></span><div>SO-1011 and SO-1012 out for delivery<small>Today</small></div></li>
+   <li><span class="dot"></span><div>Payment received on INV-5019<small>Yesterday</small></div></li>
+   <li><span class="dot"></span><div>SHP-2407 received at Warehouse B<small>6 days ago</small></div></li>
+   <li><span class="dot"></span><div>Customer C account moved to Net 45<small>1 week ago</small></div></li></ul></div></div>`;
+}
+function rInbound(){
+  const rows=SHIPMENTS.filter(s=>FIL.inbound==="All"||STAGES[s.stage].k===FIL.inbound);
+  return `${filt("inbound",["All",...STAGES.map(s=>s.k)])}<div class="panel"><div class="tw"><table><thead><tr><th>Shipment</th><th>Container</th><th>Supplier</th><th>Port</th><th>ETA</th><th>Warehouse</th><th>Status</th><th class="num">Landed cost</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.container}</td><td>${s.supplier}</td><td>${s.port}</td><td>${dfmt(s.eta)}</td><td>${WH[s.wh]}</td><td><span class="badge ${STAGES[s.stage].cls}">${STAGES[s.stage].k}</span></td><td class="num">${money(shipCost(s))}</td><td><button class="btn btn-ghost btn-sm" data-act="ship" data-id="${s.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No shipments in this status.</td></tr>`}</tbody></table></div></div>`;
+}
+let ALLOC="Value";
+function shipModal(id,m){
+  if(m)ALLOC=m;
+  const s=SHIPMENTS.find(x=>x.id===id), ex=extraOf(s), goods=shipCost(s)-ex, units=s.lines.reduce((n,l)=>n+l.qty,0), next=STAGES[s.stage+1];
+  const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
+  const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
+  openModal(s.id+" · "+s.container,`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Port</b>${s.port}</div><div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
+   <ul class="tl">${STAGES.map((st,k)=>`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
+   <label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>
+   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / case</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${NUM.format(r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
+   <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div>
+   <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
+   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
+}
+function shipNext(id){
+  const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;s.stage++;
+  if(s.stage===4){s.lines.forEach(l=>I(l.sku).stock[s.wh]+=l.qty);toast(s.id+" received at "+WH[s.wh]+". Stock updated.")}else toast(s.id+" is now: "+STAGES[s.stage].k);
+  closeModal();renderPage();
+}
+function rInventory(){
+  const f=FIL.inventory, rows=ITEMS.filter(i=>f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0));
+  const units=ITEMS.reduce((n,i)=>n+totalStock(i),0);
+  return `<div class="kpis">${kpi("layers","Cases on hand",NUM.format(units),"Both warehouses")}${kpi("box","Warehouse A",NUM.format(ITEMS.reduce((n,i)=>n+i.stock.A,0)),"Main")}${kpi("box","Warehouse B",NUM.format(ITEMS.reduce((n,i)=>n+i.stock.B,0)),"Secondary")}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}</div>
+  ${filt("inventory",["All","Low Stock","Has Incoming"])}<div class="panel"><div class="tw"><table><thead><tr><th>SKU</th><th>Item</th><th class="num">Wh A</th><th class="num">Wh B</th><th class="num">Total</th><th class="num">Reorder at</th><th class="num">Incoming</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const st=stockState(i);return `<tr><td>${i.sku}</td><td>${i.name}</td><td class="num">${NUM.format(i.stock.A)}</td><td class="num">${NUM.format(i.stock.B)}</td><td class="num"><b>${NUM.format(totalStock(i))}</b></td><td class="num">${i.reorder}</td><td class="num">${incoming(i.sku)||"-"}</td><td><span class="badge ${st[1]}">${st[0]}</span></td><td><button class="btn btn-ghost btn-sm" data-act="item" data-id="${i.sku}">View</button></td></tr>`}).join("")||`<tr><td colspan="9">Nothing matches this filter.</td></tr>`}</tbody></table></div></div>${trfPanel()}`;
+}
+function itemModal(sku){
+  const i=I(sku), mv=[];
+  SHIPMENTS.filter(s=>s.stage===4).forEach(s=>s.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:s.eta,t:"Inbound "+s.id,w:s.wh,q:l.qty})));
+  ORDERS.filter(o=>o.status==="Out for Delivery"||o.status==="Delivered").forEach(o=>o.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:o.delivered||o.date,t:"Outbound "+o.id+" to "+CUSTNAME(o.cust),w:o.wh,q:-l.qty})));
+  TRANSFERS.filter(t=>t.sku===sku).forEach(t=>{mv.push({d:t.date,t:"Transfer "+t.id+" out",w:t.from,q:-t.qty});if(t.status==="Received")mv.push({d:t.date,t:"Transfer "+t.id+" in",w:t.to,q:t.qty})});
+  mv.sort((a,b)=>b.d-a.d);
+  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Selling price</b>${money(i.price)} / case</div><div><b>Warehouse A</b>${NUM.format(i.stock.A)} cases</div><div><b>Warehouse B</b>${NUM.format(i.stock.B)} cases</div><div><b>Unit cost</b>${money(i.cost)}</div><div><b>Incoming</b>${incoming(sku)||0} cases</div></div>
+  <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Cases</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":""}${m.q}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`);
+}
+function rSales(){
+  const f=FIL.sales, rows=ORDERS.filter(o=>f==="All"||o.status===f).slice().sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), uo=unitsOut(30);
+  const perItem=`<div class="panel"><h2>Cases out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${NUM.format(x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))}</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
+  const orders=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("sales",["All","Credit Hold","Pending","Packed","Out for Delivery","Delivered"])}<button class="btn btn-primary btn-sm" data-act="so-new">${ic("plus",14)}New sales order</button></div>
+  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Cases</th><th class="num">Amount</th><th>Terms</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${o.lines.reduce((n,l)=>n+l.qty,0)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="9">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
+  return filt("salesTab",["Orders","Cases out per item"])+(FIL.salesTab==="Cases out per item"?perItem:orders);
+}
+const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
+function soModal(id){
+  const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status], inv=invOf(o.id);
+  openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div><div><b>Driver</b>${o.driver}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
+  <div class="tw"><table><thead><tr><th>Item</th><th class="num">Cases</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.qty}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
+  <div class="sum"><div class="tot"><span>Order total</span><span>${money(orderTotal(o))}</span></div></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${nx?`<button class="btn btn-accent" data-act="so-next" data-id="${o.id}">${o.status==="Credit Hold"?"Approve credit override":"Mark as: "+nx}</button>`:""}`);
+}
+function soNext(id){
+  const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status];if(!nx)return;
+  if(nx==="Out for Delivery"){
+    const short=o.lines.find(l=>I(l.sku).stock[o.wh]<l.qty);
+    if(short){toast("Not enough "+I(short.sku).name+" at "+WH[o.wh]+" to dispatch this order.");return}
+    o.lines.forEach(l=>I(l.sku).stock[o.wh]-=l.qty);toast(o.id+" is out for delivery. Stock deducted from "+WH[o.wh]+".");
+  }else if(nx==="Delivered"){deliver(o,"Customer representative")}
+  else if(o.status==="Credit Hold"){toast("Credit override approved for "+o.id+". Released to Pending.")}
+  else toast(o.id+" is now: "+nx);
+  o.status=nx;closeModal();renderPage();
+}
+function deliver(o,by,pod){
+  o.delivered=addDays(0);o.receivedBy=by;o.status="Delivered";o.pod=pod||{by,photo:false,sig:false};
+  if(!invOf(o.id)){const inv=mkInvoice(o,0);toast(o.id+" delivered. "+inv.id+" created, due "+dfmt(inv.due)+" (Net "+inv.terms+").")}
+}
+function soNew(){
+  openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Item<select id="nsItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Cases<input id="nsQty" type="number" min="1" value="20"></label></div>
+  <label class="f">Ship from<select id="nsWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
+}
+function soCreate(){
+  const q=Math.max(1,parseInt($("#nsQty").value)||1), sku=$("#nsItem").value, cu=+$("#nsCust").value;
+  const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:"Driver A",delivered:null,receivedBy:"",pod:null};
+  ORDERS.push(o);closeModal();
+  toast(over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".");renderPage();
+}
+function rCollections(){
+  const f=FIL.collections, rows=INVOICES.filter(i=>f==="All"||invStatus(i)===f).slice().sort((a,b)=>a.due-b.due);
+  const open=INVOICES.filter(i=>i.amount-i.paid>0), bucket=(lo,hi)=>open.filter(i=>{const d=-dayDiff(i.due,TODAY);return d>=lo&&d<=hi}).reduce((n,i)=>n+i.amount-i.paid,0);
+  return `<div class="kpis">${kpi("card","Total outstanding",money(outstanding()),open.length+" open invoices")}${kpi("check","Not yet due",money(bucket(-999,0)),"Within terms")}${kpi("alert","1 to 30 days overdue",money(bucket(1,30)),"")}${kpi("alert","31 to 60 days overdue",money(bucket(31,60)),"")}${kpi("alert","Over 60 days overdue",money(bucket(61,9999)),"")}</div>
+  ${filt("collTab",["Invoices","Customer credit"])}${FIL.collTab==="Customer credit"?creditPanel():`${filt("collections",["All","Current","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Delivered</th><th>Terms</th><th>Due date</th><th class="num">Amount</th><th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const s=invStatus(i),bal=i.amount-i.paid,dd=dayDiff(i.due,TODAY);return `<tr><td><b>${i.id}</b></td><td>${CUSTNAME(i.cust)}</td><td>${dfmt(i.issued)}</td><td>Net ${i.terms}</td><td>${dfmt(i.due)}<br><small style="color:var(--muted)">${s==="Paid"?"":dd<0?(-dd)+" days overdue":dd===0?"due today":"in "+dd+" days"}</small></td><td class="num">${money(i.amount)}</td><td class="num"><b>${money(bal)}</b></td><td><span class="badge ${invBadge[s]}">${s}</span></td><td><button class="btn btn-ghost btn-sm" data-act="inv" data-id="${i.id}">${bal>0?"Record payment":"View"}</button></td></tr>`}).join("")||`<tr><td colspan="9">No invoices in this status.</td></tr>`}</tbody></table></div></div>`}`;
+}
+function invModal(id){
+  const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, s=invStatus(i);
+  openModal(i.id+" · "+CUSTNAME(i.cust),`<div class="kv"><div><b>Sales order</b>${i.so}</div><div><b>Status</b><span class="badge ${invBadge[s]}">${s}</span></div><div><b>Delivered</b>${dfmt(i.issued)}</div><div><b>Due (Net ${i.terms})</b>${dfmt(i.due)}</div></div>
+  <div class="sum" style="margin:0 0 14px"><div><span>Invoice amount</span><span>${money(i.amount)}</span></div><div><span>Paid so far</span><span>${money(i.paid)}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
+  ${i.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${i.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
+  ${bal>0?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Bank transfer</option><option>Cash</option><option>E-wallet</option><option>Check</option></select></label></div><label class="f">Reference<input id="payRef" placeholder="Reference no."></label>`:""}`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0?`<button class="btn btn-ghost" data-act="remind" data-id="${i.cust}">Send reminder</button><button class="btn btn-accent" data-act="pay" data-id="${i.id}">Save payment</button>`:""}`);
+}
+function pay(id){
+  const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, a=Math.min(bal,Math.max(1,parseFloat($("#payAmt").value)||0));
+  i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:$("#payMethod").value,ref:$("#payRef").value||"No reference"});
+  closeModal();toast(money(a)+" recorded on "+i.id+(i.amount-i.paid<=0?". Invoice fully paid.":". Remaining "+money(i.amount-i.paid)+"."));renderPage();
+}
+function rSettings(){
+  return `<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
+  <label class="f">Default credit terms<select><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
+  <label class="f">Warehouse A name<input value="Warehouse A"></label><label class="f">Warehouse B name<input value="Warehouse B"></label></div>
+  <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
+  <button class="btn btn-primary" data-act="save">Save settings</button></div>`;
+}
+function rUsers(){
+  const U=[["Admin User","admin@companya.example","Owner"],["Sample User 1","user1@companya.example","Warehouse Manager"],["Sample User 2","user2@companya.example","Sales"],["Sample User 3","user3@companya.example","Collections"],["Driver A","drivera@companya.example","Driver"]];
+  return `<div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-primary btn-sm" data-act="invite">${ic("plus",14)}Invite user</button></div><div class="panel"><div class="tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>${U.map(u=>`<tr><td>${u[0]}</td><td>${u[1]}</td><td>${u[2]}</td><td><span class="badge b-ok">Active</span></td></tr>`).join("")}</tbody></table></div></div>`;
+}
+function showAlerts(){
+  const low=ITEMS.filter(i=>stockState(i)[0]!=="OK"), od=INVOICES.filter(i=>invStatus(i)==="Overdue"), arr=SHIPMENTS.filter(s=>s.stage<4&&dayDiff(s.eta,TODAY)<=2);
+  openModal("Notifications",`<ul class="feed">${ORDERS.filter(o=>o.status==="Credit Hold").map(o=>`<li><span class="dot" style="background:var(--bad)"></span><div>${o.id} for ${CUSTNAME(o.cust)} is on credit hold (${money(orderTotal(o))})<small>Credit control</small></div></li>`).join("")}${low.map(i=>`<li><span class="dot" style="background:var(--warn)"></span><div>${i.name} is at ${totalStock(i)} cases (reorder at ${i.reorder})<small>Stock alert</small></div></li>`).join("")}${od.map(i=>`<li><span class="dot" style="background:var(--bad)"></span><div>${i.id} for ${CUSTNAME(i.cust)} is ${-dayDiff(i.due,TODAY)} days overdue (${money(i.amount-i.paid)})<small>Collections</small></div></li>`).join("")}${arr.map(s=>`<li><span class="dot"></span><div>${s.id} expected ${s.eta<=TODAY?"today":"in "+dayDiff(s.eta,TODAY)+" days"} at ${WH[s.wh]}<small>Inbound</small></div></li>`).join("")}</ul>`);
+}
+
+
+/* ---------- credit, statements, transfers ---------- */
+const exposure=c=>INVOICES.filter(i=>i.cust===c).reduce((n,i)=>n+i.amount-i.paid,0)+ORDERS.filter(o=>o.cust===c&&o.status!=="Delivered").reduce((n,o)=>n+orderTotal(o),0);
+function creditPanel(){
+  return `<div class="panel"><h2>Customer balances and credit limits</h2><div class="tw"><table><thead><tr><th>Customer</th><th>Terms</th><th class="num">Credit limit</th><th class="num">Exposure</th><th class="num">Available</th><th>Usage</th><th></th></tr></thead><tbody>${Object.entries(CUSTS).map(([k,c])=>{const ex=exposure(+k),p=ex/c.limit,cls=p>=1?"bad":p>=.8?"warn":"";return `<tr><td><b>${c.name}</b></td><td>Net ${c.terms}</td><td class="num">${money(c.limit)}</td><td class="num">${money(ex)}</td><td class="num" style="color:var(${p>=1?"--bad":"--text"})">${money(c.limit-ex)}</td><td><div class="usage ${cls}" title="${Math.round(p*100)}% used"><i style="width:${Math.min(100,Math.round(p*100))}%"></i></div></td><td><button class="btn btn-ghost btn-sm" data-act="stmt" data-id="${k}">Statement</button> <button class="btn btn-ghost btn-sm" data-act="remind" data-id="${k}">Remind</button></td></tr>`}).join("")}</tbody></table></div><p class="note" style="margin-top:8px">Exposure = unpaid invoices + orders not yet delivered. A new order that pushes a customer over the limit is placed on credit hold for approval.</p></div>`;
+}
+function stmtModal(k){
+  const c=CUSTS[k], inv=INVOICES.filter(i=>i.cust===+k).sort((a,b)=>a.due-b.due), bal=inv.reduce((n,i)=>n+i.amount-i.paid,0);
+  openModal("Statement of account: "+c.name,`<div class="kv"><div><b>As of</b>${dfmt(TODAY)}</div><div><b>Terms</b>Net ${c.terms} days</div><div><b>Credit limit</b>${money(c.limit)}</div><div><b>Balance due</b>${money(bal)}</div></div>
+  <div class="tw"><table><thead><tr><th>Invoice</th><th>Delivered</th><th>Due</th><th class="num">Amount</th><th class="num">Balance</th><th>Status</th></tr></thead><tbody>${inv.map(i=>{const st=invStatus(i);return `<tr><td>${i.id}</td><td>${dfmt(i.issued)}</td><td>${dfmt(i.due)}</td><td class="num">${money(i.amount)}</td><td class="num">${money(i.amount-i.paid)}</td><td><span class="badge ${invBadge[st]}">${st}</span></td></tr>`}).join("")||`<tr><td colspan="6">No invoices yet.</td></tr>`}</tbody></table></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button><button class="btn btn-accent" data-act="stmt-send" data-id="${k}">Send statement</button>`);
+}
+function remind(k){
+  const due=INVOICES.filter(i=>i.cust===+k&&["Overdue","Due Soon"].includes(invStatus(i))), sum=due.reduce((n,i)=>n+i.amount-i.paid,0);
+  closeModal();
+  toast(due.length?"Reminder sent to "+CUSTS[k].name+" for "+due.length+" invoice"+(due.length>1?"s":"")+" ("+money(sum)+").":CUSTS[k].name+" has nothing overdue or due soon.");
+}
+function trfPanel(){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Warehouse transfers</h2><button class="btn btn-primary btn-sm" data-act="trf-new">${ic("plus",14)}New transfer</button></div><div class="tw"><table><thead><tr><th>Transfer</th><th>Item</th><th class="num">Cases</th><th>From</th><th>To</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody>${TRANSFERS.slice().reverse().map(t=>`<tr><td><b>${t.id}</b></td><td>${I(t.sku).name}</td><td class="num">${t.qty}</td><td>${WH[t.from]}</td><td>${WH[t.to]}</td><td>${dfmt(t.date)}</td><td><span class="badge ${t.status==="Received"?"b-ok":"b-warn"}">${t.status}</span></td><td>${t.status==="In Transit"?`<button class="btn btn-ghost btn-sm" data-act="trf-recv" data-id="${t.id}">Receive</button>`:""}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">Stock leaves the source warehouse when the transfer is created and counts at the destination once it is received.</p></div>`;
+}
+function trfNew(){
+  openModal("New warehouse transfer",`<label class="f">Item<select id="tfItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Cases<input id="tfQty" type="number" min="1" value="20"></label><span></span><label class="f">From<select id="tfFrom"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label><label class="f">To<select id="tfTo"><option value="B">Warehouse B</option><option value="A">Warehouse A</option></select></label></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trf-create">Create transfer</button>`);
+}
+function trfCreate(){
+  const sku=$("#tfItem").value, q=Math.max(1,parseInt($("#tfQty").value)||1), f=$("#tfFrom").value, t=$("#tfTo").value;
+  if(f===t){toast("Choose two different warehouses.");return}
+  if(I(sku).stock[f]<q){toast("Only "+I(sku).stock[f]+" cases of "+I(sku).name+" at "+WH[f]+".");return}
+  I(sku).stock[f]-=q;TRANSFERS.push({id:"TRF-"+(++trfSeq),sku,qty:q,from:f,to:t,date:addDays(0),status:"In Transit"});
+  closeModal();toast("TRF-"+trfSeq+" created. "+q+" cases are in transit to "+WH[t]+".");renderPage();
+}
+function trfRecv(id){
+  const t=TRANSFERS.find(x=>x.id===id);t.status="Received";I(t.sku).stock[t.to]+=t.qty;toast(t.id+" received at "+WH[t.to]+". Stock updated.");renderPage();
+}
+let podPhoto=false,podSig=false;
+function initSig(){
+  const c=$("#sig");if(!c)return;const x=c.getContext("2d");x.lineWidth=3;x.lineCap="round";x.strokeStyle="#1C1F2A";let d=false;
+  const p=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+  c.onpointerdown=e=>{d=true;const q=p(e);x.beginPath();x.moveTo(q[0],q[1]);c.setPointerCapture(e.pointerId)};
+  c.onpointermove=e=>{if(!d)return;const q=p(e);x.lineTo(q[0],q[1]);x.stroke();podSig=true};
+  c.onpointerup=()=>{d=false};
+}
+
+/* ---------- DRIVER ---------- */
+let dtab="todo", dsel=null;
+function renderDriver(){
+  $("#drvDate").textContent=dfmt(TODAY);$("#drvTitle").textContent=dtab==="todo"?"Today's route":"Delivered today";
+  $$(".tabbar button").forEach(b=>b.classList.toggle("active",b.dataset.id===dtab));
+  const list=ORDERS.filter(o=>dtab==="todo"?o.status==="Out for Delivery":(o.status==="Delivered"&&o.delivered&&dayDiff(TODAY,o.delivered)<=0));
+  $("#drvBody").innerHTML=list.length?list.map(o=>`<button class="dcard" data-act="stop" data-id="${o.id}"><div class="r"><b>${CUSTNAME(o.cust)}</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div style="font-size:13px;color:var(--muted)">${o.id} &middot; ${o.lines.reduce((n,l)=>n+l.qty,0)} cases &middot; ${money(orderTotal(o))}</div><div style="font-size:13px;display:flex;gap:6px;align-items:center">${ic("pin",14)}Address Line, City A</div></button>`).join(""):`<div style="text-align:center;color:var(--muted);padding:40px 10px">${dtab==="todo"?"No stops left. Dispatch an order from the Console and it will appear here.":"Nothing delivered yet today."}</div>`;
+}
+function openStop(id){
+  const o=ORDERS.find(x=>x.id===id);dsel=id;podPhoto=false;podSig=false;
+  $("#sheet").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 class="display" style="font-size:20px">${CUSTNAME(o.cust)}</h3><button class="iconbtn" data-act="sheet-close" aria-label="Close">${ic("x",20)}</button></div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px">${o.id} &middot; Address Line, City A</p>
+  <div class="tw" style="margin-bottom:10px"><table><tbody>${o.lines.map(l=>`<tr><td style="white-space:normal">${I(l.sku).name}</td><td class="num">${l.qty}</td></tr>`).join("")}</tbody></table></div>
+  <div class="sum" style="margin:0 0 12px"><div><span>Order total</span><b>${money(orderTotal(o))}</b></div><div><span>Payment terms</span><span>Net ${CUSTS[o.cust].terms} days</span></div></div>
+  ${o.status==="Out for Delivery"?`<label class="f">Received by<input id="recvBy" placeholder="Receiver Name"></label><button class="photo" id="photoBtn" data-act="photo">${ic("plus",18)}<span>Add delivery photo</span></button><div class="note" style="margin-bottom:4px">Customer signature</div><div class="sigwrap"><canvas id="sig" width="600" height="192" aria-label="Signature area"></canvas><button type="button" data-act="sig-clear">Clear</button></div><button class="btn btn-accent" style="width:100%;justify-content:center" data-act="confirm" data-id="${o.id}">${ic("check",16)}Confirm delivery</button>`:`<p><span class="badge b-ok">Delivered</span> received by ${esc((o.pod&&o.pod.by)||o.receivedBy||"customer representative")}</p><p class="note">Photo ${o.pod&&o.pod.photo?"attached":"not attached"}; signature ${o.pod&&o.pod.sig?"captured":"not captured"}</p>`}`;
+  $("#sheet").classList.add("open");$("#sheetBack").classList.add("open");initSig();
+}
+function sheetClose(){$("#sheet").classList.remove("open");$("#sheetBack").classList.remove("open")}
+function confirmDelivery(id){
+  const o=ORDERS.find(x=>x.id===id), by=($("#recvBy").value||"").trim()||"Customer representative";
+  deliver(o,by,{by,photo:podPhoto,sig:podSig});sheetClose();renderDriver();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act,id=t.dataset.id;
+  if(a==="go")showView(id);
+  else if(a==="menu")showMenu();
+  else if(a==="modal-close")closeModal();
+  else if(a==="page")setPage(id);
+  else if(a==="side-toggle"){$("#side").classList.toggle("open");$("#sideBack").classList.toggle("open")}
+  else if(a==="fil"){FIL[t.dataset.k]=id;renderPage()}
+  else if(a==="ship")shipModal(id);else if(a==="ship-next")shipNext(id);
+  else if(a==="item")itemModal(id);
+  else if(a==="so")soModal(id);else if(a==="so-next")soNext(id);else if(a==="so-new")soNew();else if(a==="so-create")soCreate();
+  else if(a==="inv")invModal(id);else if(a==="pay")pay(id);
+  else if(a==="save")toast("Settings saved.");
+  else if(a==="invite")toast("Invitation sent to new.user@companya.example.");
+  else if(a==="alerts")showAlerts();
+  else if(a==="pmenu"){$("#pmenu").classList.toggle("open")}
+  else if(a==="scroll"){e.preventDefault();const el=$(t.dataset.href||t.getAttribute("href"));if(el)el.scrollIntoView({behavior:"smooth"});$("#pmenu").classList.remove("open")}
+  else if(a==="add"){cart[id]=(cart[id]||0)+10;renderCatalog();toast("Added 10 cases of "+I(id).name)}
+  else if(a==="cart-open")openCart();
+  else if(a==="cart-clear"){Object.keys(cart).forEach(k=>delete cart[k]);closeModal();renderCatalog();toast("Order list cleared.")}
+  else if(a==="cart-submit"){Object.keys(cart).forEach(k=>delete cart[k]);closeModal();renderCatalog();toast("Order request received. We will confirm stock and delivery shortly.")}
+  else if(a==="dtab"){dtab=id;renderDriver()}
+  else if(a==="stop")openStop(id);
+  else if(a==="photo"){podPhoto=true;t.classList.add("done");t.querySelector("span").textContent="Photo attached (sample)"}
+  else if(a==="sig-clear"){const c=$("#sig");c.getContext("2d").clearRect(0,0,c.width,c.height);podSig=false}
+  else if(a==="stmt")stmtModal(id);
+  else if(a==="stmt-send"){closeModal();toast("Statement sent to accounts@customer.example.")}
+  else if(a==="remind")remind(id);
+  else if(a==="trf-new")trfNew();else if(a==="trf-create")trfCreate();else if(a==="trf-recv")trfRecv(id);
+  else if(a==="sheet-close")sheetClose();
+  else if(a==="confirm")confirmDelivery(id);
+});
+$("#acctForm").addEventListener("submit",e=>{e.preventDefault();e.target.reset();toast("Application received. We will contact you within one business day.")});
+document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if(t&&t.dataset.chg==="alloc")shipModal(t.dataset.id,t.value)});
+paintIcons();
+</script>
+</body>
+</html>
