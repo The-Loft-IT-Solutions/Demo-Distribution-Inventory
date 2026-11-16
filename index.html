@@ -764,12 +764,43 @@ function pay(id){
   i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:$("#payMethod").value,ref:$("#payRef").value||"No reference"});
   closeModal();toast(money(a)+" recorded on "+i.id+(i.amount-i.paid<=0?". Invoice fully paid.":". Remaining "+money(i.amount-i.paid)+"."));renderPage();
 }
+function catPanel(){
+  return `<div class="panel" style="max-width:640px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Item categories</h2><button class="btn btn-primary btn-sm" data-act="cat-new">${ic("plus",14)}Add category</button></div><div class="tw"><table><thead><tr><th>Category</th><th class="num">Items</th><th>Expiry tracking</th><th class="num">Shelf life</th><th></th></tr></thead><tbody>${Object.keys(CATS).map(c=>`<tr><td><b>${esc(c)}</b></td><td class="num">${ITEMS.filter(i=>i.cat===c).length}</td><td>${CATS[c]?"Yes":"No"}</td><td class="num">${CATS[c]?SHELF[c]+" days":"None"}</td><td><button class="btn btn-ghost btn-sm" data-act="cat-edit" data-id="${esc(c)}">Edit</button></td></tr>`).join("")}</tbody></table></div></div>`;
+}
+function catForm(old){
+  const n=old?ITEMS.filter(i=>i.cat===old).length:0, per=old?!!CATS[old]:true;
+  openModal(old?"Edit category":"Add category",`<label class="f">Category name<input id="catName" value="${old?esc(old):""}"></label>
+  <label class="check"><input type="checkbox" id="catPer" data-chg="catper" ${per?"checked":""} ${n?"disabled":""}>Perishable: track batches and expiry dates</label>${n?`<p class="note">This can't be changed while the category has items (${n}).</p>`:""}
+  <label class="f" id="catShelfW" style="display:${per?"":"none"}">Usual shelf life (days)<input id="catShelf" type="number" min="1" value="${old&&CATS[old]?SHELF[old]:180}"></label>
+  <p class="note">New shelf life applies to stock received from now on. Existing batches keep their expiry dates.</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button>${old&&!n?`<button class="btn btn-ghost" data-act="cat-del" data-id="${esc(old)}">Delete</button>`:""}<button class="btn btn-accent" data-act="cat-save" data-id="${old?esc(old):""}">Save category</button>`);
+}
+function catRefresh(){const pc=$("#pcat");if(pc)pc.innerHTML="";FIL.catC="All categories";renderPage()}
+function catSave(old){
+  const name=$("#catName").value.trim(), per=$("#catPer").checked, shelf=parseInt($("#catShelf").value)||0;
+  if(!name){toast("Enter the category name.");return}
+  if(Object.keys(CATS).some(k=>k.toLowerCase()===name.toLowerCase()&&k!==old)){toast(name+" already exists.");return}
+  if(per&&shelf<1){toast("Enter the usual shelf life in days.");return}
+  if(!old){CATS[name]=per?1:0;if(per)SHELF[name]=shelf;toast(name+" added.")}
+  else{
+    const nc={},ns={};Object.keys(CATS).forEach(k=>{const nk=k===old?name:k;nc[nk]=CATS[k];if(SHELF[k]!==undefined)ns[nk]=SHELF[k]});
+    Object.keys(CATS).forEach(k=>delete CATS[k]);Object.keys(SHELF).forEach(k=>delete SHELF[k]);Object.assign(CATS,nc);Object.assign(SHELF,ns);
+    if(CATS[name]&&per)SHELF[name]=shelf;
+    ITEMS.filter(i=>i.cat===old).forEach(i=>{i.cat=name;if(CATS[name])i.shelf=SHELF[name]});
+    SUPPS.forEach(x=>{x.cats=x.cats.map(c=>c===old?name:c)});toast(name+" saved.");
+  }
+  closeModal();catRefresh();
+}
+function catDel(old){
+  if(ITEMS.some(i=>i.cat===old)){toast("Move or remove the items in "+old+" first.");return}
+  delete CATS[old];delete SHELF[old];SUPPS.forEach(x=>{x.cats=x.cats.filter(c=>c!==old)});closeModal();toast(old+" deleted.");catRefresh();
+}
 function rSettings(){
   return `<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
   <label class="f">Default credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
   <label class="f">Warehouse A name<input value="Warehouse A"></label><label class="f">Warehouse B name<input value="Warehouse B"></label></div>
   <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
-  <button class="btn btn-primary" data-act="save">Save settings</button></div>`;
+  <button class="btn btn-primary" data-act="save">Save settings</button></div>${catPanel()}`;
 }
 function rUsers(){
   const U=[["Admin User","admin@companya.example","Owner"],["Sample User 1","user1@companya.example","Warehouse Manager"],["Sample User 2","user2@companya.example","Sales"],["Sample User 3","user3@companya.example","Collections"],["Driver A","drivera@companya.example","Driver"]];
@@ -848,7 +879,7 @@ function itemNew(){
   <div class="grid2"><label class="f">Category<select id="niCat">${Object.keys(CATS).map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Reorder level (cases)<input id="niRe" type="number" min="0" value="20"></label>
   <label class="f">Cost per case (PHP)<input id="niCost" type="number" min="0" step="0.01"></label><label class="f">Selling price per case (PHP)<input id="niPrice" type="number" min="0" step="0.01"></label>
   <label class="f">Opening stock (cases)<input id="niQty" type="number" min="0" value="0"></label><label class="f">Warehouse<select id="niWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label></div>
-  <p class="note">The SKU is assigned automatically. Food items get an expiry date from the category's usual shelf life.</p>`,
+  <p class="note">The SKU is assigned automatically. Perishable categories get an expiry date from their usual shelf life. Categories are managed under Settings.</p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="item-create">Save item</button>`);
 }
 function itemCreate(){
@@ -1352,7 +1383,7 @@ document.addEventListener("click",e=>{
   else if(a==="pg"){const k=t.dataset.k;FIL[k+"Page"]=Math.max(0,(FIL[k+"Page"]||0)+(+id));const c=$("#"+k+"Tbl");c.innerHTML=TBL[k]();paintIcons(c)}
   else if(a==="import")importModal(id);
   else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
-  else if(a==="item-new")itemNew();else if(a==="item-create")itemCreate();else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
+  else if(a==="cat-new")catForm("");else if(a==="cat-edit")catForm(id);else if(a==="cat-save")catSave(id);else if(a==="cat-del")catDel(id);else if(a==="item-new")itemNew();else if(a==="item-create")itemCreate();else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
@@ -1365,6 +1396,7 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   if(c==="alloc")shipModal(t.dataset.id,t.value);
   else if(c==="posup")poNew(t.value);
   else if(c==="trmode"){const sea=t.value==="sea";$("#trSea").style.display=sea?"block":"none";$("#vhLbl").textContent=sea?"Truck to the origin port":"Vehicle"}
+  else if(c==="catper"){$("#catShelfW").style.display=t.checked?"":"none"}
   else if(c==="dmwhy"){$("#dmOtherW").style.display=t.value==="Other"?"":"none"}
   else if(c==="cntype"){$("#ncLimit").value=TYPE_LIMIT[t.value]}
   else if(c==="vhsel"){$("#vhHired").style.display=t.value==="hired"?"block":"none"}
