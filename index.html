@@ -473,6 +473,7 @@ const DAMAGES=[{id:"DMG-101",date:addDays(-18),sku:"SKU-1007",wh:"B",lot:"L2406-
 let dmgSeq=103;
 const RETURNS=[]; let retSeq=200, cnSeq=400;
 const TRUCKBACK=[]; let tbSeq=500;
+const RTVS=[]; let rtvSeq=700;
 let trfSeq=301;
 const ORDERS=[]; const INVOICES=[];
 let soSeq=1016, invSeq=5010;
@@ -517,6 +518,9 @@ const CUSTNAME=id=>CUSTS[id].name;
 makeReturn(ORDERS.find(x=>x.id==="SO-1003"),"SKU-1004",6,"Damaged on delivery","Write off as damage",addDays(-9));
 makeReturn(ORDERS.find(x=>x.id==="SO-1006"),"SKU-1008",10,"Wrong item","Back to stock",addDays(-4));
 TRUCKBACK.push({id:"TB-501",so:"SO-1010",sku:"SKU-1001",qty:12,wh:"A",date:addDays(-1),status:"Expected back"});tbSeq=501;
+(()=>{const a=DAMAGES.find(x=>x.id==="DMG-102"),b=DAMAGES.find(x=>x.id==="DMG-101");
+ a.rtv=makeRtv({date:addDays(-8),sku:a.sku,wh:a.wh,qty:a.qty,supplier:supplierOfLot(a.lot),reason:"Damaged",res:"Credit",src:a.id}).id;
+ b.rtv=makeRtv({date:addDays(-17),sku:b.sku,wh:b.wh,qty:b.qty,supplier:supplierOfLot(b.lot),reason:"Damaged",res:"Credit",status:"Credit received",src:b.id}).id})();
 
 /* ---------- view control ---------- */
 let current=null;
@@ -749,7 +753,7 @@ function itemModal(sku){
   <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Cases</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":""}${m.q}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`);
 }
 function dmgPanel(){
-  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Cases</th><th>Reason</th><th class="num">Cost value</th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${d.qty}</td><td>${d.reason}</td><td class="num">${money(d.qty*I(d.sku).cost)}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the cases from stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2><button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button></div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Cases</th><th>Reason</th><th class="num">Cost value</th><th></th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${d.qty}</td><td>${d.reason}</td><td class="num">${money(d.qty*I(d.sku).cost)}</td><td>${d.rtv?`<span class="badge b-info">${d.rtv}</span>`:`<button class="btn btn-ghost btn-sm" data-act="rtv-new" data-id="${d.id}">Return to vendor</button>`}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the cases from stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
 }
 function dmgNew(){
   openModal("Report damage or write-off",`<label class="f">Item<select id="dmItem">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
@@ -831,7 +835,40 @@ function tbPanel(){
 }
 function rReturns(){
   const n=30,R30=RETURNS.filter(r=>inP(r.date,n));
-  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" cases")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("truck","Expected back",NUM.format(sumBy(TRUCKBACK.filter(t=>t.status!=="Received"),t=>t.qty))+" cases","Spare cases still on trucks")}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" cases","Damage and returns")}</div>${tbPanel()}${retPanel()}${dmgPanel()}`;
+  return `<div class="kpis">${kpi("back","Returns (30 days)",R30.length,NUM.format(sumBy(R30,r=>r.qty))+" cases")}${kpi("card","Credit notes",money(sumBy(R30,r=>r.value)),"Last 30 days")}${kpi("truck","Expected back",NUM.format(sumBy(TRUCKBACK.filter(t=>t.status!=="Received"),t=>t.qty))+" cases","Spare cases still on trucks")}${kpi("file","Awaiting vendor",RTVS.filter(r=>r.status==="Sent to vendor").length+" RTVs",money(sumBy(RTVS.filter(r=>r.status==="Sent to vendor"),r=>r.value)))}${kpi("alert","Written off",NUM.format(sumBy(DAMAGES.filter(d=>inP(d.date,n)),d=>d.qty))+" cases","Damage and returns")}</div>${tbPanel()}${retPanel()}${dmgPanel()}${rtvPanel()}`;
+}
+
+/* ---------- return to vendor (RTV) ---------- */
+const SUPPLIERS=["Supplier A","Supplier B","Supplier C"];
+function supplierOfLot(lot){const m=/^L(\d{4})-/.exec(lot||"");const s=m&&SHIPMENTS.find(x=>x.id==="SHP-"+m[1]);return s?s.supplier:"Supplier A"}
+function makeRtv(o){
+  const it=I(o.sku),r={id:"RTV-"+(++rtvSeq),date:o.date||addDays(0),sku:o.sku,wh:o.wh,qty:o.qty,supplier:o.supplier,reason:o.reason,res:o.res,status:o.status||"Sent to vendor",value:o.qty*it.cost,src:o.src||"Warehouse stock"};
+  if(o.takeFromStock)takeStock(it,o.wh,o.qty,true);
+  RTVS.push(r);return r;
+}
+function rtvNew(dmgId){
+  const d=DAMAGES.find(x=>x.id===dmgId), sk=d?d.sku:ITEMS[0].sku;
+  openModal(d?"Return "+d.id+" to vendor":"New return to vendor (RTV)",`<label class="f">Item<select id="rvItem" ${d?"disabled":""}>${ITEMS.map(i=>`<option value="${i.sku}" ${i.sku===sk?"selected":""}>${i.name}</option>`).join("")}</select></label>
+  <div class="grid2"><label class="f">Warehouse<select id="rvWh" ${d?"disabled":""}><option value="A" ${d&&d.wh==="A"?"selected":""}>Warehouse A</option><option value="B" ${d&&d.wh==="B"?"selected":""}>Warehouse B</option></select></label><label class="f">Cases<input id="rvQty" type="number" min="1" value="${d?d.qty:5}" ${d?"disabled":""}></label>
+  <label class="f">Vendor<select id="rvSup">${SUPPLIERS.map(x=>`<option ${d&&supplierOfLot(d.lot)===x?"selected":""}>${x}</option>`).join("")}</select></label><label class="f">Reason<select id="rvWhy">${["Damaged","Expired","Wrong item","Quality issue"].map(x=>`<option>${x}</option>`).join("")}</select></label></div>
+  <label class="f">Vendor makes it right by<select id="rvRes"><option value="Credit">Credit note (reduces what we owe)</option><option value="Replacement">Replacement cases</option></select></label>
+  <p class="note">${d?"These cases are already out of stock as damage, so no stock is deducted.":"The cases leave the warehouse stock now, earliest expiry first."}</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="rtv-create" data-id="${d?d.id:""}">Create RTV</button>`);
+}
+function rtvCreate(dmgId){
+  const d=DAMAGES.find(x=>x.id===dmgId),sku=d?d.sku:$("#rvItem").value,wh=d?d.wh:$("#rvWh").value,qty=d?d.qty:Math.max(1,parseInt($("#rvQty").value)||1);
+  if(!d&&I(sku).stock[wh]<qty){toast("Only "+I(sku).stock[wh]+" cases of "+I(sku).name+" at "+WH[wh]+".");return}
+  const r=makeRtv({sku,wh,qty,supplier:$("#rvSup").value,reason:$("#rvWhy").value,res:$("#rvRes").value,src:d?d.id:"Warehouse stock",takeFromStock:!d});
+  if(d)d.rtv=r.id;closeModal();toast(r.id+" created for "+r.supplier+": "+qty+" cases, expecting "+(r.res==="Credit"?"a credit of "+money(r.value):"replacement cases")+".");renderPage();
+}
+function rtvDone(id){
+  const r=RTVS.find(x=>x.id===id),it=I(r.sku);
+  if(r.res==="Credit"){r.status="Credit received";toast(r.id+": "+money(r.value)+" credit from "+r.supplier+" recorded. Pending payables reduced.")}
+  else{addStock(it,r.wh,r.qty,"RTV-"+r.id.slice(4),it.food?addDays(it.shelf):null);r.status="Replacement received";toast(r.id+": "+r.qty+" replacement cases received at "+WH[r.wh]+".")}
+  renderPage();
+}
+function rtvPanel(){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Returns to vendor (RTV)</h2><button class="btn btn-primary btn-sm" data-act="rtv-new" data-id="">${ic("plus",14)}New RTV</button></div><div class="tw"><table><thead><tr><th>RTV</th><th>Date</th><th>Vendor</th><th>Item</th><th class="num">Cases</th><th>Reason</th><th>Vendor to give</th><th>Status</th><th class="num">Value</th><th></th></tr></thead><tbody>${RTVS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.supplier}</td><td>${I(r.sku).name}</td><td class="num">${r.qty}</td><td>${r.reason}</td><td>${r.res==="Credit"?"Credit note":"Replacement"}</td><td><span class="badge ${r.status==="Sent to vendor"?"b-warn":"b-ok"}">${r.status}</span></td><td class="num">${money(r.value)}</td><td>${r.status==="Sent to vendor"?`<button class="btn btn-ghost btn-sm" data-act="rtv-done" data-id="${r.id}">${r.res==="Credit"?"Record credit":"Receive replacement"}</button>`:""}</td></tr>`).join("")||`<tr><td colspan="10">No vendor returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Damaged or expired stock goes back to the supplier. A credit note lowers pending payables; replacement cases return to stock when received.</p></div>`;
 }
 
 /* ---------- reports ---------- */
@@ -840,7 +877,7 @@ const inP=(d,n)=>{if(!d)return false;const x=dayDiff(TODAY,d);return x>=0&&x<=n}
 const sumBy=(a,f)=>a.reduce((n,x)=>n+f(x),0);
 const caseCt=o=>sumBy(o.lines,l=>l.qty);
 const tbl=(head,rows,total)=>`<div class="tw"><table id="repTable"><thead><tr>${head.map(h=>`<th${h[1]?' class="num"':""}>${h[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${head.length}">No records in this period.</td></tr>`}${total?`<tr class="tr-total">${total.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
-const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Returns","Damage","Payables"];
+const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Returns","Vendor returns","Damage","Payables"];
 function rReports(){
   const n=PD[FIL.repP], r=FIL.rep; let body="",title="",kp="";
   if(r==="Inbound stock"){
@@ -859,13 +896,16 @@ function rReports(){
   }else if(r==="Returns"){
     title="Customer returns";const T=RETURNS.filter(x=>inP(x.date,n));
     body=tbl([["Return"],["Date"],["Customer"],["Item"],["Reason"],["Result"],["Cases",1],["Credit",1]],T.map(x=>[x.id,dfmt(x.date),CUSTNAME(x.cust),I(x.sku).name,x.reason,x.disp,x.qty,x.rep?"Replacement "+x.rep:money(x.value)]),["Total","","","","","",sumBy(T,x=>x.qty),money(sumBy(T,x=>x.value))]);
+  }else if(r==="Vendor returns"){
+    title="Returns to vendor (RTV)";const V=RTVS.filter(x=>inP(x.date,n));
+    body=tbl([["RTV"],["Date"],["Vendor"],["Item"],["Reason"],["Vendor to give"],["Status"],["Cases",1],["Value",1]],V.map(x=>[x.id,dfmt(x.date),x.supplier,I(x.sku).name,x.reason,x.res==="Credit"?"Credit note":"Replacement",x.status,x.qty,money(x.value)]),["Total","","","","","","",sumBy(V,x=>x.qty),money(sumBy(V,x=>x.value))]);
   }else if(r==="Damage"){
     title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
     body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Cases",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
   }else if(r==="Payables"){
-    title="Pending payables";const P=SHIPMENTS.filter(s=>!s.pay.paid).sort((a,b)=>a.pay.due-b.pay.due);
-    kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(sumBy(P,shipCost)),P.length+" unpaid bills")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
-    body=tbl([["Shipment"],["Supplier"],["Due date"],["Status"],["Amount",1],[""]],P.map(s=>{const d=dayDiff(s.pay.due,TODAY);return [s.id,s.supplier,dfmt(s.pay.due),`<span class="badge ${d<0?"b-bad":d<=7?"b-warn":"b-info"}">${d<0?-d+" days overdue":d===0?"Due today":"Due in "+d+" days"}</span>`,money(shipCost(s)),`<button class="btn btn-ghost btn-sm" data-act="sup-paid" data-id="${s.id}">Mark paid</button>`]}),["Total pending","","","",money(sumBy(P,shipCost)),""]);
+    title="Pending payables";const cr=sumBy(RTVS.filter(x=>x.status==="Credit received"),x=>x.value);const P=SHIPMENTS.filter(s=>!s.pay.paid).sort((a,b)=>a.pay.due-b.pay.due);
+    kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(Math.max(0,sumBy(P,shipCost)-cr)),P.length+" unpaid bills, less "+money(cr)+" RTV credits")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
+    body=tbl([["Shipment"],["Supplier"],["Due date"],["Status"],["Amount",1],[""]],P.map(s=>{const d=dayDiff(s.pay.due,TODAY);return [s.id,s.supplier,dfmt(s.pay.due),`<span class="badge ${d<0?"b-bad":d<=7?"b-warn":"b-info"}">${d<0?-d+" days overdue":d===0?"Due today":"Due in "+d+" days"}</span>`,money(shipCost(s)),`<button class="btn btn-ghost btn-sm" data-act="sup-paid" data-id="${s.id}">Mark paid</button>`]}),["Total pending (less "+money(cr)+" RTV credits)","","","",money(Math.max(0,sumBy(P,shipCost)-cr)),""]);
   }else{
     title="Sales by customer";const m={};ORDERS.filter(o=>o.status==="Delivered"&&inP(o.delivered,n)).forEach(o=>{const x=m[o.cust]=m[o.cust]||{o:0,c:0,v:0};x.o++;x.c+=caseCt(o);x.v+=orderTotal(o)});
     const E=Object.entries(m).sort((a,b)=>b[1].v-a[1].v);
@@ -962,7 +1002,8 @@ document.addEventListener("click",e=>{
   else if(a==="import")importModal(id);
   else if(a==="import-go"){closeModal();toast("Sample import finished: "+id+" rows read, 0 errors. Nothing was changed in this demo.")}
   else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
-  else if(a==="csv")csvExport();else if(a==="tb-recv")tbRecv(id);
+  else if(a==="csv")csvExport();
+  else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
   else if(a==="sup-paid"){SHIPMENTS.find(x=>x.id===id).pay.paid=true;toast(id+" marked as paid.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
