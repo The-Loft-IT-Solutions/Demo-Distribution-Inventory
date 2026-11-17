@@ -541,8 +541,9 @@ const RTVS=[]; let rtvSeq=700;
 let trfSeq=301;
 const ORDERS=[]; const INVOICES=[];
 let soSeq=1016, invSeq=5010;
+const CHANNELS=["Offline","Lazada","Shopee","TikTok"], isOnline=o=>(o.ch||"Offline")!=="Offline", chOf=n=>["Offline","Offline","Lazada","Shopee","Offline","TikTok"][n%6];
 function mkOrder(id,cust,ago,lines,status,wh,driver){
-  const o={id:"SO-"+id,cust,date:addDays(-ago-(status==="Delivered"?2:0)),lines:L(lines),status,wh,driver:driver||"Driver A",via:"Truck",track:"",delivered:status==="Delivered"?addDays(-ago):null,receivedBy:"",pod:status==="Delivered"?{by:"Customer representative",photo:true,sig:true}:null};
+  const o={id:"SO-"+id,ch:chOf(+id||0),cust,date:addDays(-ago-(status==="Delivered"?2:0)),lines:L(lines),status,wh,driver:driver||"Driver A",via:"Truck",track:"",delivered:status==="Delivered"?addDays(-ago):null,receivedBy:"",pod:status==="Delivered"?{by:"Customer representative",photo:true,sig:true}:null};
   ORDERS.push(o);return o;
 }
 function mkInvoice(o,paidPct,pm){
@@ -729,7 +730,7 @@ function applyRole(){
   const r=$("#roleSel");if(r){if(!r.options.length)r.innerHTML=Object.keys(ROLES).map(x=>`<option>${x}</option>`).join("");r.value=ROLE}
 }
 const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
-let page="dash"; const FIL={topP:"30 days",custTab:"Customers",appF:"Pending",purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
+let page="dash"; const FIL={topP:"30 days",custTab:"Customers",appF:"Pending",purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",salesCh:"All",pdcF:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){if(!pageOK(p)){toast("Your role ("+ROLE+") can't open "+PAGES[p]+".");return}page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
@@ -742,6 +743,8 @@ function unitsOut(days){
   const m={};ORDERS.filter(o=>(o.status==="Delivered"||o.status==="Out for Delivery")&&(days<0?inCustom(o.delivered||o.date):dayDiff(TODAY,o.delivered||o.date)<=days)).forEach(o=>o.lines.forEach(l=>{m[l.sku]=m[l.sku]||{q:0,v:0};m[l.sku].q+=l.qty;m[l.sku].v+=l.qty*I(l.sku).price}));
   return Object.entries(m).map(([sku,x])=>({sku,...x})).sort((a,b)=>b.v-a.v);
 }
+{const op=INVOICES.filter(i=>i.amount-i.paid>0&&i.amount>0).sort((a,b)=>a.due-b.due);
+ [[2,5,"Held"],[5,12,"Held"],[8,-1,"Deposited"],[11,-12,"Bounced"]].forEach(([ix,d,st],n)=>{const i=op[ix];if(!i)return;const a=Math.round((i.amount-i.paid)*.5);(i.pdcs=i.pdcs||[]).push({amt:a,date:addDays(d),ref:"PDC-"+(7710+n),status:st,proof:null})})}
 const outstanding=()=>INVOICES.reduce((n,i)=>n+(i.amount-i.paid),0);
 const overdueAmt=()=>INVOICES.filter(i=>invStatus(i)==="Overdue").reduce((n,i)=>n+(i.amount-i.paid),0);
 function activity(){
@@ -841,10 +844,10 @@ function shipNext(id,force){
   closeModal();renderPage();
 }
 function rSales(){
-  const f=FIL.sales, rows=ORDERS.filter(o=>f==="All"||o.status===f).slice().sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), uo=unitsOut(30);
+  const f=FIL.sales, rows=ORDERS.filter(o=>(f==="All"||o.status===f)&&(FIL.salesCh==="All"||(o.ch||"Offline")===FIL.salesCh)).slice().sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), uo=unitsOut(30);
   const perItem=`<div class="panel"><h2>Units out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${fq(x.sku,x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))} units</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
-  const orders=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("sales",["All","Credit Hold","Pending","Packed","Out for Delivery","Delivered"])}<button class="btn btn-primary btn-sm" data-act="so-new">${ic("plus",14)}New sales order</button></div>
-  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Qty</th><th class="num">Amount</th><th>Terms</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${fqs(o.lines)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td>${o.via==="Courier"?"Courier":"Own truck"}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="10">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
+  const orders=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("sales",["All","Credit Hold","Pending","Packed","Out for Delivery","Delivered"])}<button class="btn btn-primary btn-sm" data-act="so-new">${ic("plus",14)}New sales order</button></div>${filt("salesCh",["All",...CHANNELS])}
+  <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Channel</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Qty</th><th class="num">Amount</th><th>Terms</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${o.ch||"Offline"}</td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${fqs(o.lines)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td>${o.via==="Courier"?"Courier":"Own truck"}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="11">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
   return filt("salesTab",["Orders","Units out per item"])+(FIL.salesTab==="Units out per item"?perItem:orders);
 }
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
@@ -883,19 +886,32 @@ function rCollections(){
   const f=FIL.collections, rows=INVOICES.filter(i=>f==="All"||invStatus(i)===f).slice().sort((a,b)=>a.due-b.due);
   const open=INVOICES.filter(i=>i.amount-i.paid>0), bucket=(lo,hi)=>open.filter(i=>{const d=-dayDiff(i.due,TODAY);return d>=lo&&d<=hi}).reduce((n,i)=>n+i.amount-i.paid,0);
   return `<div class="kpis">${kpi("card","Total outstanding",money(outstanding()),open.length+" open invoices")}${kpi("check","Not yet due",money(bucket(-999,0)),"Within terms")}${kpi("alert","1 to 30 days overdue",money(bucket(1,30)),"")}${kpi("alert","31 to 60 days overdue",money(bucket(31,60)),"")}${kpi("alert","Over 60 days overdue",money(bucket(61,9999)),"")}</div>
-  ${filt("collTab",["Invoices","Customer credit"])}${FIL.collTab==="Customer credit"?custBlock():`${filt("collections",["All","Current","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Delivered</th><th>Terms</th><th>Due date</th><th class="num">Amount</th><th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const s=invStatus(i),bal=i.amount-i.paid,dd=dayDiff(i.due,TODAY);return `<tr><td><b>${i.id}</b></td><td>${CUSTNAME(i.cust)}</td><td>${dfmt(i.issued)}</td><td>Net ${i.terms}</td><td>${dfmt(i.due)}<br><small style="color:var(--muted)">${s==="Paid"?"":dd<0?(-dd)+" days overdue":dd===0?"due today":"in "+dd+" days"}</small></td><td class="num">${money(i.amount)}</td><td class="num"><b>${money(bal)}</b></td><td><span class="badge ${invBadge[s]}">${s}</span></td><td><button class="btn btn-ghost btn-sm" data-act="inv" data-id="${i.id}">${bal>0?"Record payment":"View"}</button></td></tr>`}).join("")||`<tr><td colspan="9">No invoices in this status.</td></tr>`}</tbody></table></div></div>`}`;
+  ${filt("collTab",["Invoices","PDCs","Customer credit"])}${FIL.collTab==="PDCs"?pdcBlock():FIL.collTab==="Customer credit"?custBlock():`${filt("collections",["All","Current","Due Soon","Overdue","Paid"])}<div class="panel"><div class="tw"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Delivered</th><th>Terms</th><th>Due date</th><th class="num">Amount</th><th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(i=>{const s=invStatus(i),bal=i.amount-i.paid,dd=dayDiff(i.due,TODAY);return `<tr><td><b>${i.id}</b></td><td>${CUSTNAME(i.cust)}</td><td>${dfmt(i.issued)}</td><td>Net ${i.terms}</td><td>${dfmt(i.due)}<br><small style="color:var(--muted)">${s==="Paid"?"":dd<0?(-dd)+" days overdue":dd===0?"due today":"in "+dd+" days"}</small></td><td class="num">${money(i.amount)}</td><td class="num"><b>${money(bal)}</b></td><td><span class="badge ${invBadge[s]}">${s}</span></td><td><button class="btn btn-ghost btn-sm" data-act="inv" data-id="${i.id}">${bal>0?"Record payment":"View"}</button></td></tr>`}).join("")||`<tr><td colspan="9">No invoices in this status.</td></tr>`}</tbody></table></div></div>`}`;
 }
+const allPdc=()=>INVOICES.flatMap(i=>(i.pdcs||[]).map((p,k)=>({i,p,k})));
+function pdcBlock(){
+  const f=FIL.pdcF,L=allPdc().filter(x=>f==="All"||x.p.status===f).sort((a,b)=>a.p.date-b.p.date), A=allPdc(), sm=st=>sumBy(A.filter(x=>x.p.status===st),x=>x.p.amt);
+  const wk=A.filter(x=>x.p.status!=="Cleared"&&x.p.status!=="Bounced"&&dayDiff(x.p.date,TODAY)<=7);
+  const cls={Held:"b-warn",Deposited:"b-info",Cleared:"b-ok",Bounced:"b-bad"};
+  return `<div class="kpis">${kpi("card","Held",money(sm("Held")),"Not yet deposited")}${kpi("bell","Due within 7 days",money(sumBy(wk,x=>x.p.amt)),wk.length+" checks")}${kpi("check","Deposited",money(sm("Deposited")),"Awaiting clearing")}${kpi("alert","Bounced",money(sm("Bounced")),"Invoice stays unpaid")}</div>
+  ${filt("pdcF",["All","Held","Deposited","Cleared","Bounced"])}<div class="panel"><div class="tw"><table><thead><tr><th>Check no.</th><th>Customer</th><th>Invoice</th><th>Check date</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${L.map(({i,p,k})=>`<tr><td><b>${esc(p.ref)}</b></td><td>${CUSTNAME(i.cust)}</td><td>${i.id}</td><td>${dfmt(p.date)}<br><small style="color:var(--muted)">${p.status==="Held"||p.status==="Deposited"?(dayDiff(p.date,TODAY)<0?"date has passed":dayDiff(p.date,TODAY)===0?"today":"in "+dayDiff(p.date,TODAY)+" days"):""}</small></td><td class="num">${money(p.amt)}</td><td><span class="badge ${cls[p.status]||"b-info"}">${p.status}</span></td><td>${!can("pay")?"":p.status==="Held"?`<button class="btn btn-ghost btn-sm" data-act="pdc" data-id="${i.id}" data-k="${k}" data-to="Deposited">Mark deposited</button>`:p.status==="Deposited"?`<button class="btn btn-accent btn-sm" data-act="pdc" data-id="${i.id}" data-k="${k}" data-to="Cleared">Cleared</button> <button class="btn btn-ghost btn-sm" data-act="pdc" data-id="${i.id}" data-k="${k}" data-to="Bounced">Bounced</button>`:""}</td></tr>`).join("")||`<tr><td colspan="7">No post-dated checks here.</td></tr>`}</tbody></table></div></div>`}
+function pdcMove(id,k,to){const i=INVOICES.find(x=>x.id===id),p=i.pdcs[k];p.status=to;
+  if(to==="Cleared"){const a=Math.min(p.amt,i.amount-i.paid);i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:"PDC",ref:p.ref,proof:p.proof||null});toast("Check "+p.ref+" cleared. "+money(a)+" applied to "+i.id+".")}
+  else if(to==="Bounced")toast("Check "+p.ref+" bounced. "+i.id+" stays unpaid at "+money(i.amount-i.paid)+".");
+  else toast("Check "+p.ref+" marked as deposited.");renderPage()}
 function invModal(id){
   const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, s=invStatus(i);
   openModal(i.id+" · "+CUSTNAME(i.cust),`<div class="kv"><div><b>Sales order</b>${i.so}</div><div><b>Status</b><span class="badge ${invBadge[s]}">${s}</span></div><div><b>Delivered</b>${dfmt(i.issued)}</div><div><b>Due (Net ${i.terms})</b>${dfmt(i.due)}</div></div>
   <div class="sum" style="margin:0 0 14px"><div><span>Invoice amount</span><span>${money(i.amount)}</span></div><div><span>Paid so far</span><span>${money(i.paid)}</span></div><div class="tot"><span>Balance</span><span>${money(bal)}</span></div></div>
   ${i.payments.length?`<h4 style="margin-bottom:6px">Payments</h4><div class="tw" style="margin-bottom:14px"><table><tbody>${i.payments.map(p=>`<tr><td>${dfmt(p.date)}</td><td>${p.method}</td><td>${p.ref}</td><td>${p.proof?`<a href="${p.proof.url}" target="_blank" rel="noopener" title="${esc(p.proof.name)}">${ic("upload",13)} ${esc(p.proof.name.length>18?p.proof.name.slice(0,15)+"...":p.proof.name)}</a>`:`<span class="note">No proof</span>`}</td><td class="num">${money(p.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}
-  ${bal>0&&!can("pay")?noPerm("Recording a payment"):""}${bal>0&&can("pay")?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Cash</option><option>Check</option><option>Bank transfer</option></select></label></div><label class="f">Reference<input id="payRef" placeholder="Check no. or transfer ref."></label><label class="f">Proof of payment (optional)<input id="payProof" type="file" accept="image/*,.pdf"></label><p class="note" style="margin:0">Deposit slip, transfer receipt or check photo. Image or PDF.</p>`:""}`,
+  ${bal>0&&!can("pay")?noPerm("Recording a payment"):""}${bal>0&&can("pay")?`<h4 style="margin-bottom:8px">Record payment</h4><div class="grid2"><label class="f">Amount (PHP)<input id="payAmt" type="number" min="1" max="${bal}" value="${bal}"></label><label class="f">Method<select id="payMethod"><option>Cash</option><option>Check</option><option>PDC</option><option>Bank transfer</option></select></label></div><div class="grid2"><label class="f">Reference<input id="payRef" placeholder="Check no. or transfer ref."></label><label class="f">PDC check date<input id="payPdc" type="date" value="${ymdv(addDays(30))}"></label></div><p class="note" style="margin:0 0 8px">For a post-dated check (PDC), the invoice stays open until the check clears. Check date is used for PDC only.</p><label class="f">Proof of payment (optional)<input id="payProof" type="file" accept="image/*,.pdf"></label><p class="note" style="margin:0">Deposit slip, transfer receipt or check photo. Image or PDF.</p>`:""}`,
   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${bal>0?`<button class="btn btn-ghost" data-act="remind" data-id="${i.cust}">Send reminder</button>${can("pay")?`<button class="btn btn-accent" data-act="pay" data-id="${i.id}">Save payment</button>`:""}`:""}`);
 }
 function pay(id){
   const i=INVOICES.find(x=>x.id===id), bal=i.amount-i.paid, a=Math.min(bal,Math.max(1,parseFloat($("#payAmt").value)||0));
   const fl=$("#payProof").files[0];if(fl&&fl.size>5*1024*1024){toast("Proof is over 5 MB. Choose a smaller file.");return}
+  if($("#payMethod").value==="PDC"){const d=$("#payPdc").value?new Date($("#payPdc").value+"T00:00:00"):addDays(30);(i.pdcs=i.pdcs||[]).push({amt:a,date:d,ref:$("#payRef").value||"No check no.",status:"Held",proof:fl?{name:fl.name,url:URL.createObjectURL(fl)}:null});
+    closeModal();toast("PDC for "+money(a)+" held for "+i.id+", check date "+dfmt(d)+". The invoice stays open until it clears.");renderPage();return}
   i.paid+=a;i.payments.push({date:addDays(0),amt:a,method:$("#payMethod").value,ref:$("#payRef").value||"No reference",proof:fl?{name:fl.name,url:URL.createObjectURL(fl)}:null});
   closeModal();toast(money(a)+" recorded on "+i.id+(i.amount-i.paid<=0?". Invoice fully paid.":". Remaining "+money(i.amount-i.paid)+".")+(fl?" Proof attached.":""));renderPage();
 }
@@ -1102,6 +1118,7 @@ const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via
 function soNew(){
   openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
   <div class="grid2"><label class="f">Item<select id="nsItem" data-chg="uitem" data-id="nsU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Quantity<input id="nsQty" type="number" min="0" step="any" value="20"></label><label class="f">Unit<select id="nsU">${unitOpts(ITEMS[0])}</select></label>
+  <label class="f">Sales channel<select id="nsCh">${CHANNELS.map(c=>`<option>${c}</option>`).join("")}</select></label>
   <label class="f">Extra loaded for replacements<input id="nsBuf" type="number" min="0" step="any" value="0"></label><label class="f">Ship from<select id="nsWh" data-chg="nsstock"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} units)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div><p class="note" id="nsStock" style="margin-top:8px"></p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
   nsStockUpd();
@@ -1115,7 +1132,7 @@ function soCreate(){
   if(need>av+1e-9&&SET.stockRule==="block"){toast("Only "+fq(sku,av)+" available at "+wn+" and the order needs "+fq(sku,need)+"."+(sellable(I(sku),oth)>=need?" "+WH[oth]+" has enough.":""));return}
   const short=need>av+1e-9;
   const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
-  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:bf}],status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:bf}],ch:$("#nsCh").value,status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
   ORDERS.push(o);closeModal();
   toast((over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".")+(short?" Stock is short at "+wn+", so picking will wait.":""));renderPage();
 }
@@ -1452,7 +1469,7 @@ const inP=(d,n)=>{if(!d)return false;if(n<0)return inCustom(d);const x=dayDiff(T
 const sumBy=(a,f)=>a.reduce((n,x)=>n+f(x),0);
 const caseCt=o=>sumBy(o.lines,l=>l.qty);
 const tbl=(head,rows,total)=>`<div class="tw"><table id="repTable"><thead><tr>${head.map(h=>`<th${h[1]?' class="num"':""}>${h[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${head.length}">No records in this period.</td></tr>`}${total?`<tr class="tr-total">${total.map((c,k)=>`<td${head[k][1]?' class="num"':""}>${c}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
-const REPS=["Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Returns","Vendor returns","Damage","Payables"];
+const REPS=["CEO weekly","Channels","Sales","Inbound stock","Outbound stock","Orders","Sales invoices","Returns","Vendor returns","Damage","Payables"];
 function rReports(){
   const RV=ROLES[ROLE].reps||REPS;if(!RV.includes(FIL.rep))FIL.rep=RV[0];
   const n=PD[FIL.repP], r=FIL.rep; let body="",title="",kp="";
@@ -1478,6 +1495,22 @@ function rReports(){
   }else if(r==="Damage"){
     title="Damage report";const D=DAMAGES.filter(d=>inP(d.date,n));
     body=tbl([["Report"],["Date"],["Item"],["Warehouse"],["Reason"],["Qty",1],["Cost value",1]],D.map(d=>[d.id,dfmt(d.date),I(d.sku).name,WH[d.wh],d.reason,d.qty,money(d.qty*I(d.sku).cost)]),["Total","","","","",sumBy(D,d=>d.qty),money(sumBy(D,d=>d.qty*I(d.sku).cost))]);
+  }else if(r==="Channels"){
+    title="Orders by sales channel";const O=ORDERS.filter(o=>inP(o.date,n)),G=CHANNELS.map(c=>{const x=O.filter(o=>(o.ch||"Offline")===c);return[c,x.length,sumBy(x,orderTotal)]}),tv=sumBy(G,g=>g[2])||1,on=O.filter(isOnline);
+    kp=`<div class="kpis">${kpi("file","Offline orders",NUM.format(O.length-on.length),money(sumBy(O.filter(o=>!isOnline(o)),orderTotal)))}${kpi("cart","Online orders",NUM.format(on.length),money(sumBy(on,orderTotal)))}</div>`;
+    body=tbl([["Channel"],["Orders",1],["Sales value",1],["Share",1]],G.map(g=>[g[0],g[1],money(g[2]),Math.round(g[2]/tv*100)+"%"]),["Total",O.length,money(sumBy(G,g=>g[2])),"100%"]);
+  }else if(r==="CEO weekly"){
+    title="CEO weekly report";const O7=ORDERS.filter(o=>dayDiff(TODAY,o.date)<=7&&dayDiff(TODAY,o.date)>=0),on=O7.filter(isOnline),off=O7.filter(o=>!isOnline(o)),vo=x=>money(sumBy(x,orderTotal));
+    const o30=Object.fromEntries(unitsOut(30).map(x=>[x.sku,x.q])),o60=Object.fromEntries(unitsOut(60).map(x=>[x.sku,x.q])),tot=i=>sumBy(Object.values(i.stock),v=>v);
+    const MV=ITEMS.filter(i=>tot(i)>0).map(i=>{const q=o30[i.sku]||0,cov=q>0?tot(i)/(q/30):999,st=!o60[i.sku]?"Stagnant":q>0&&cov<=30?"Fast":"Slow";return{i,q,cov,st}}).sort((a,b)=>["Stagnant","Slow","Fast"].indexOf(a.st)-["Stagnant","Slow","Fast"].indexOf(b.st)||b.i.cost*tot(b.i)-a.i.cost*tot(a.i));
+    const up=[...INVOICES.filter(i=>i.amount-i.paid>0&&dayDiff(i.due,TODAY)>=0&&dayDiff(i.due,TODAY)<=7).map(i=>({d:i.due,c:CUSTNAME(i.cust),w:"Invoice "+i.id,a:i.amount-i.paid})),...allPdc().filter(x=>(x.p.status==="Held"||x.p.status==="Deposited")&&dayDiff(x.p.date,TODAY)<=7).map(x=>({d:x.p.date,c:CUSTNAME(x.i.cust),w:"PDC "+x.p.ref+" ("+x.p.status+")",a:x.p.amt}))].sort((a,b)=>a.d-b.d);
+    const od={};INVOICES.filter(i=>i.amount-i.paid>0&&dayDiff(i.due,TODAY)<0).forEach(i=>{const x=od[i.cust]=od[i.cust]||{n:0,a:0,d:0};x.n++;x.a+=i.amount-i.paid;x.d=Math.max(x.d,-dayDiff(i.due,TODAY))});const OD=Object.entries(od).sort((a,b)=>b[1].a-a[1].a);
+    kp=`<div class="kpis">${kpi("cart","Online orders, 7 days",NUM.format(on.length),vo(on))}${kpi("file","Offline orders, 7 days",NUM.format(off.length),vo(off))}${kpi("bell","Collections due, 7 days",money(sumBy(up,x=>x.a)),up.length+" invoices or checks")}${kpi("alert","Overdue accounts",NUM.format(OD.length),money(sumBy(OD,e=>e[1].a)))}</div>`;
+    const bd={Fast:"b-ok",Slow:"b-warn",Stagnant:"b-bad"};
+    body=`<h3 style="margin:4px 0 8px">Item orders by channel (last 7 days)</h3>`+tbl([["Channel"],["Orders",1],["Value",1]],CHANNELS.map(c=>{const x=O7.filter(o=>(o.ch||"Offline")===c);return[c,x.length,vo(x)]}))+
+    `<h3 style="margin:18px 0 8px">Inventory movement (fast, slow, stagnant)</h3><p class="note">Fast: sells out within 30 days at the current pace. Slow: moving, but more than 30 days of stock. Stagnant: nothing sold in 60 days.</p>`+tbl([["Item"],["On hand",1],["Sold, 30 days",1],["Days of stock",1],["Movement"]],MV.map(m=>[m.i.name,fq(m.i.sku,tot(m.i)),m.q?fq(m.i.sku,m.q):"0",m.cov>=999?"No sales":Math.round(m.cov),`<span class="badge ${bd[m.st]}">${m.st}</span>`]))+
+    `<h3 style="margin:18px 0 8px">Upcoming collections (next 7 days)</h3>`+tbl([["Due"],["Customer"],["What"],["Amount",1]],up.map(x=>[dfmt(x.d),x.c,x.w,money(x.a)]),up.length?["Total","","",money(sumBy(up,x=>x.a))]:undefined)+
+    `<h3 style="margin:18px 0 8px">Overdue accounts</h3>`+tbl([["Customer"],["Overdue invoices",1],["Oldest (days)",1],["Balance",1]],OD.map(([k,x])=>[CUSTNAME(k),x.n,x.d,money(x.a)]),OD.length?["Total","","",money(sumBy(OD,e=>e[1].a))]:undefined);
   }else if(r==="Payables"){
     title="Pending payables";const cr=creditTotal(),P=BILLS.filter(b=>billBal(b)>0).sort((a,b)=>a.due-b.due),net=Math.max(0,sumBy(P,billBal)-cr);
     kp=`<div class="kpis">${kpi("card","Owed to suppliers",money(net),P.length+" unpaid bills, less "+money(cr)+" RTV credits")}${kpi("check","Owed by customers",money(outstanding()),"See Collections")}</div>`;
@@ -1488,7 +1521,7 @@ function rReports(){
     kp=`<div class="kpis">${kpi("card","Sales",money(sumBy(E,e=>e[1].v)),"Delivered, "+perLbl(n))}${kpi("users","Customers served",E.length,"")}${kpi("layers","Units sold",NUM.format(sumBy(E,e=>e[1].c)),"")}</div>`;
     body=tbl([["Customer"],["Type"],["Orders",1],["Qty",1],["Sales",1]],E.slice(0,15).map(([k,x])=>[CUSTNAME(k),CUSTS[k].type,x.o,NUM.format(x.c),money(x.v)]),["Total ("+E.length+" customers)","",sumBy(E,e=>e[1].o),NUM.format(sumBy(E,e=>e[1].c)),money(sumBy(E,e=>e[1].v))])+(E.length>15?`<p class="note" style="margin-top:8px">Showing the top 15 customers. Export to CSV for the full list.</p>`:"");
   }
-  return `${filt("rep",RV)}<div class="toolbar">${r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days","Custom"])}${r!=="Payables"&&FIL.repP==="Custom"?`<span class="daterange"><label>From <input type="date" value="${FIL.repFrom||ymdv(addDays(-30))}" data-chg="repdate" data-id="from" aria-label="From date"></label><label>To <input type="date" value="${FIL.repTo||ymdv(addDays(0))}" data-chg="repdate" data-id="to" aria-label="To date"></label></span>`:""}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
+  return `${filt("rep",RV)}<div class="toolbar">${r==="CEO weekly"?`<span class="note">Last 7 days and the next 7 days, as of today.</span>`:r==="Payables"?`<span class="note">Unpaid supplier bills, all dates.</span>`:filt("repP",["7 days","30 days","90 days","Custom"])}${r!=="Payables"&&r!=="CEO weekly"&&FIL.repP==="Custom"?`<span class="daterange"><label>From <input type="date" value="${FIL.repFrom||ymdv(addDays(-30))}" data-chg="repdate" data-id="from" aria-label="From date"></label><label>To <input type="date" value="${FIL.repTo||ymdv(addDays(0))}" data-chg="repdate" data-id="to" aria-label="To date"></label></span>`:""}<button class="btn btn-ghost btn-sm" data-act="csv">${ic("download",14)}Export to CSV</button></div>${kp}<div class="panel"><h2>${title}</h2>${body}</div>`;
 }
 function csvExport(){
   const t=$("#repTable");if(!t)return;
@@ -1572,6 +1605,7 @@ document.addEventListener("click",e=>{
   else if(a==="stmt")stmtModal(id);
   else if(a==="stmt-send"){closeModal();toast("Statement sent to accounts@customer.example.")}
   else if(a==="remind")remind(id);
+  else if(a==="pdc")pdcMove(id,+t.dataset.k,t.dataset.to);
   else if(a==="trf-new")trfNew();else if(a==="trf-create")trfCreate();else if(a==="trf-recv")trfRecv(id);
   else if(a==="sheet-close")sheetClose();
   else if(a==="confirm")confirmDelivery(id);
