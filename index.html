@@ -332,6 +332,7 @@ td.num,th.num{text-align:right}
     <button class="nl" data-act="page" data-id="returns"><span data-ic="back" data-s="18"></span>Returns &amp; Damage</button>
     <button class="nl" data-act="page" data-id="collections"><span data-ic="card" data-s="18"></span>Collections</button>
     <button class="nl" data-act="page" data-id="customers"><span data-ic="users" data-s="18"></span>Customers</button>
+    <button class="nl" data-act="page" data-id="leads"><span data-ic="phone" data-s="18"></span>Leads (CRM)</button>
     <div class="grp">Reports</div>
     <button class="nl" data-act="page" data-id="reports"><span data-ic="chart" data-s="18"></span>Reports</button>
     <div class="grp">Settings</div>
@@ -711,14 +712,16 @@ function openCart(){
 }
 
 /* ---------- CONSOLE ---------- */
-const ALLP=["dash","purchasing","inbound","inventory","sales","vehicles","returns","collections","customers","reports","settings","users"];
+const ALLP=["dash","purchasing","inbound","inventory","sales","vehicles","returns","collections","customers","leads","reports","settings","users"];
+const EXT="Partner Company (external)";
 const ROLES={
  "Owner":{pages:ALLP,caps:["cost","items","writeoff","po","pay","billpay","credit","apps","cash","cust","admin"]},
  "Warehouse Manager":{pages:["dash","purchasing","inbound","inventory","sales","vehicles","returns","customers","reports","settings"],caps:["cost","items","writeoff","po"],reps:["Inbound stock","Outbound stock","Returns","Vendor returns","Damage"]},
  "Inbound/Outbound Clerk":{pages:["dash","inbound","inventory","sales","vehicles","returns"],caps:[]},
  "Stockman":{pages:["dash","inventory","returns"],caps:["writeoff"]},
- "Sales Officer":{pages:["dash","inventory","sales","customers"],caps:["cust"]},
- "Accounting":{pages:["dash","collections","purchasing","customers","reports"],caps:["cost","pay","billpay","credit","apps","cash","cust"]}
+ "Sales Officer":{pages:["dash","inventory","sales","customers","leads"],caps:["cust"]},
+ "Accounting":{pages:["dash","collections","purchasing","customers","reports"],caps:["cost","pay","billpay","credit","apps","cash","cust"]},
+ [EXT]:{pages:["purchasing"],caps:[]}
 };
 const CAPLBL={admin:"Company settings, users and the stock rule",cash:"See the cash outlook",cust:"Add customers",po:"Create and send purchase orders",cost:"See item cost and landed cost",items:"Add and import items",writeoff:"File damage and write-offs",pay:"Record customer payments",billpay:"Pay supplier bills",credit:"Approve credit overrides",apps:"Approve customer applications"};
 let ROLE="Owner";
@@ -729,12 +732,12 @@ function applyRole(){
   $$("#side .grp").forEach(g=>{const n=g.textContent.trim();g.style.display=(n==="Reports"&&!pageOK("reports"))||(n==="Settings"&&!pageOK("settings")&&!pageOK("users"))?"none":""});
   const r=$("#roleSel");if(r){if(!r.options.length)r.innerHTML=Object.keys(ROLES).map(x=>`<option>${x}</option>`).join("");r.value=ROLE}
 }
-const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",reports:"Reports",returns:"Returns & Damage"};
-let page="dash"; const FIL={topP:"30 days",custTab:"Customers",appF:"Pending",purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",salesCh:"All",pdcF:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
+const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",leads:"Leads (CRM)",reports:"Reports",returns:"Returns & Damage"};
+let page="dash"; const FIL={topP:"30 days",custTab:"Customers",appF:"Pending",purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",salesCh:"All",leadTab:"Pipeline",pdcF:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){if(!pageOK(p)){toast("Your role ("+ROLE+") can't open "+PAGES[p]+".");return}page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:rCustomers,reports:rReports,returns:rReturns};
+  const R={leads:rLeads,dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:rCustomers,reports:rReports,returns:rReturns};
   applyRole();$("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -848,7 +851,7 @@ function rSales(){
   const perItem=`<div class="panel"><h2>Units out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${fq(x.sku,x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))} units</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
   const orders=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("sales",["All","Credit Hold","Pending","Packed","Out for Delivery","Delivered"])}<button class="btn btn-primary btn-sm" data-act="so-new">${ic("plus",14)}New sales order</button></div>${filt("salesCh",["All",...CHANNELS])}
   <div class="panel"><div class="tw"><table><thead><tr><th>Order</th><th>Channel</th><th>Customer</th><th>Date</th><th>Ship from</th><th class="num">Qty</th><th class="num">Amount</th><th>Terms</th><th>Delivery</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr><td><b>${o.id}</b></td><td>${o.ch||"Offline"}</td><td>${CUSTNAME(o.cust)}</td><td>${dfmt(o.date)}</td><td>${WH[o.wh]}</td><td class="num">${fqs(o.lines)}</td><td class="num">${money(orderTotal(o))}</td><td>Net ${CUSTS[o.cust].terms}</td><td>${o.via==="Courier"?"Courier":"Own truck"}</td><td><span class="badge ${ordBadge[o.status]}">${o.status}</span></td><td><button class="btn btn-ghost btn-sm" data-act="so" data-id="${o.id}">View</button></td></tr>`).join("")||`<tr><td colspan="11">No orders in this status.</td></tr>`}</tbody></table></div></div>`;
-  return filt("salesTab",["Orders","Units out per item"])+(FIL.salesTab==="Units out per item"?perItem:orders);
+  return filt("salesTab",HASSER?["Orders","Units out per item","Serial numbers"]:["Orders","Units out per item"])+(FIL.salesTab==="Serial numbers"&&HASSER?`<div class="toolbar"><input type="search" data-q="ser" placeholder="Search serial number, item, customer or order" value="${esc(FIL.serQ||"")}" aria-label="Search serial numbers"></div><div class="panel" id="serTbl">${rSerTable()}</div>`:FIL.salesTab==="Units out per item"?perItem:orders);
 }
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
 function soModal(id){
@@ -1029,7 +1032,11 @@ function trfNew(){
 /* ---------- paging, search, customers ---------- */
 const PG=12;
 const pager=(k,total)=>{const p=FIL[k+"Page"]||0,pages=Math.max(1,Math.ceil(total/PG));return `<div class="pager"><span>${total?p*PG+1:0} to ${Math.min(total,(p+1)*PG)} of ${NUM.format(total)}</span><span><button class="btn btn-ghost btn-sm" data-act="pg" data-k="${k}" data-id="-1" ${p<=0?"disabled":""}>Previous</button> <button class="btn btn-ghost btn-sm" data-act="pg" data-k="${k}" data-id="1" ${p>=pages-1?"disabled":""}>Next</button></span></div>`};
-const TBL={inv:()=>rInvTable(),cust:()=>rCustTable()};
+const HASSER=ITEMS.some(i=>i.serial);
+function serialRows(){const r=[];ORDERS.filter(o=>o.status==="Delivered"&&o.delivered).forEach(o=>o.lines.forEach(l=>{const it=I(l.sku);if(!it.serial)return;const n=Math.min(Math.round(l.qty),60);for(let k=1;k<=n;k++){const end=new Date(o.delivered);end.setMonth(end.getMonth()+(it.warr||12));r.push({sn:"SN"+it.sku.replace(/\D/g,"")+"-"+o.id.replace(/\D/g,"")+"-"+String(k).padStart(2,"0"),it,o,end})}}));return r.sort((a,b)=>b.o.delivered-a.o.delivered||a.sn.localeCompare(b.sn))}
+function rSerTable(){const q=(FIL.serQ||"").toLowerCase().trim(),A=serialRows(),L=A.filter(x=>!q||(x.sn+" "+x.it.name+" "+CUSTNAME(x.o.cust)+" "+x.o.id).toLowerCase().includes(q));
+  return `<div class="tw"><table><thead><tr><th>Serial number</th><th>Item</th><th>Customer</th><th>Order</th><th>Delivered</th><th>Warranty</th><th>Valid until</th><th>Status</th></tr></thead><tbody>${L.slice(0,25).map(x=>{const d=dayDiff(x.end,TODAY);return `<tr><td><b>${x.sn}</b></td><td>${x.it.name}</td><td>${CUSTNAME(x.o.cust)}</td><td>${x.o.id}</td><td>${dfmt(x.o.delivered)}</td><td>${x.it.warr||12} months</td><td>${dfmt(x.end)}</td><td><span class="badge ${d>=0?"b-ok":"b-bad"}">${d>=0?"In warranty, "+d+" days left":"Expired"}</span></td></tr>`}).join("")||`<tr><td colspan="8">No serial numbers match.</td></tr>`}</tbody></table></div><p class="note" style="margin:8px 0 0">Showing ${Math.min(25,L.length)} of ${L.length} serial numbers. Serial numbers are recorded when an order is delivered.</p>`}
+const TBL={inv:()=>rInvTable(),cust:()=>rCustTable(),ser:rSerTable};
 function custRows(){const q=(FIL.custQ||"").toLowerCase(),f=FIL.custType;return Object.entries(CUSTS).filter(([k,c])=>(f==="All"||c.type===f)&&(!q||c.name.toLowerCase().includes(q)||c.type.toLowerCase().includes(q)))}
 function rCustTable(){
   const rows=custRows(),p=FIL.custPage||0;
@@ -1315,10 +1322,10 @@ function vehCreate(){
 const kindTag=n=>`<span class="badge ${SUP(n)&&SUP(n).kind==="Local"?"b-mute":"b-info"}">${SUP(n)?(SUP(n).kind==="Local"?"Local":"International"):"Service"}</span>`;
 const supBal=n=>BILLS.filter(b=>b.sup===n).reduce((x,b)=>x+billBal(b),0);
 const usdNote=(n,amt)=>SUP(n)&&SUP(n).cur==="USD"?`About USD ${NUM.format(Math.round(amt/FX))} at ${money(FX)} per USD (sample rate)`:"";
-function rPurchasing(){const t=FIL.purTab;return filt("purTab",["Purchase orders","Suppliers","Payables"])+(t==="Suppliers"?supTab():t==="Payables"?billTab():poTab())}
-function poTab(){
-  const rows=POS.filter(p=>FIL.po==="All"||poStatus(p)===FIL.po).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
-  return `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("po",["All","Draft","Sent","Confirmed","In transit","Received"])}${can("po")?`<button class="btn btn-primary btn-sm" data-act="po-new">${ic("plus",14)}New purchase order</button>`:""}</div>
+function rPurchasing(){const t=FIL.purTab;if(ROLE===EXT)return `<p class="note">Read-only view of purchase orders to China suppliers, shared with your company.</p>`+poTab();return filt("purTab",["Purchase orders","Suppliers","Payables"])+(t==="Suppliers"?supTab():t==="Payables"?billTab():poTab())}
+function poTab(){const shareNote=ROLE!==EXT&&(ROLE==="Owner"||ROLE==="Accounting")?`<p class="note">Purchase orders to China suppliers are shared read-only with the Partner Company (external) role. Switch "Viewing as" to see what they see.</p>`:"";
+  const rows=POS.filter(p=>(FIL.po==="All"||poStatus(p)===FIL.po)&&(ROLE!==EXT||SUP(p.sup).country==="China")).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
+  return shareNote+`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("po",["All","Draft","Sent","Confirmed","In transit","Received"])}${can("po")?`<button class="btn btn-primary btn-sm" data-act="po-new">${ic("plus",14)}New purchase order</button>`:""}</div>
   <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th>Terms</th><th class="num">Qty</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td>${termShort(p)}</td><td class="num">${fqs(p.lines)}</td><td class="num">${money(poTotal(p))}</td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
 }
 function poModal(id){
@@ -1575,6 +1582,50 @@ function confirmDelivery(id){
   deliver(o,by,{by,photo:podPhoto,sig:podSig},dmg);sheetClose();renderDriver();
 }
 
+/* ---------- light CRM: B2B retailer leads ---------- */
+const LSTAGES=["New","Contacted","Quoted","Credit review","Won","Lost"], LSRC=["Referral","Facebook","Trade fair","Walk-in","Cold call"];
+let ldSeq=208;
+const LEADS=[
+ {id:"LD-201",store:"Lead Store A",type:"Retailer",city:"Vigan",contact:"Contact A",phone:"+63 900 000 0101",vol:180000,terms:30,limit:100000,src:"Referral",stage:"Quoted",follow:addDays(2),notes:[{d:addDays(-4),t:"Called. Opening a second branch, wants TVs and aircons."},{d:addDays(-1),t:"Sent price list by email."}]},
+ {id:"LD-202",store:"Lead Store B",type:"Retailer",city:"Laoag",contact:"Contact B",phone:"+63 900 000 0102",vol:90000,terms:15,limit:50000,src:"Facebook",stage:"New",follow:addDays(0),notes:[]},
+ {id:"LD-203",store:"Lead Trading C",type:"Sub-distributor",city:"San Fernando",contact:"Contact C",phone:"+63 900 000 0103",vol:600000,terms:60,limit:250000,src:"Trade fair",stage:"Credit review",follow:addDays(1),notes:[{d:addDays(-6),t:"Met at trade fair. Asked for Net 60."},{d:addDays(-2),t:"Documents received. Waiting for credit review."}]},
+ {id:"LD-204",store:"Lead Store D",type:"Retailer",city:"Candon",contact:"Contact D",phone:"+63 900 000 0104",vol:120000,terms:30,limit:100000,src:"Walk-in",stage:"Contacted",follow:addDays(4),notes:[{d:addDays(-2),t:"Visited the warehouse. Will confirm item list."}]},
+ {id:"LD-205",store:"Lead Mart E",type:"Retailer",city:"Bangued",contact:"Contact E",phone:"+63 900 000 0105",vol:75000,terms:30,limit:50000,src:"Cold call",stage:"Lost",follow:null,notes:[{d:addDays(-9),t:"Chose a closer supplier."}]},
+ {id:"LD-206",store:"Lead Store F",type:"Retailer",city:"Vigan",contact:"Contact F",phone:"+63 900 000 0106",vol:150000,terms:45,limit:100000,src:"Referral",stage:"Won",follow:null,notes:[{d:addDays(-12),t:"Approved and added as a customer."}],app:"APP-101"},
+ {id:"LD-207",store:"Lead Trading G",type:"Institution",city:"Tuguegarao",contact:"Contact G",phone:"+63 900 000 0107",vol:300000,terms:45,limit:200000,src:"Referral",stage:"Contacted",follow:addDays(-1),notes:[{d:addDays(-5),t:"Requested a quotation for school appliances."}]},
+ {id:"LD-208",store:"Lead Store H",type:"Retailer",city:"Pagudpud",contact:"Contact H",phone:"+63 900 000 0108",vol:60000,terms:15,limit:50000,src:"Facebook",stage:"New",follow:addDays(3),notes:[]}
+];
+const stBadge={New:"b-info",Contacted:"b-info",Quoted:"b-warn","Credit review":"b-warn",Won:"b-ok",Lost:"b-bad"};
+function rLeads(){
+  const open=LEADS.filter(l=>l.stage!=="Won"&&l.stage!=="Lost"), due=open.filter(l=>l.follow&&dayDiff(l.follow,TODAY)<=3);
+  const card=l=>`<button class="lcard" data-act="lead" data-id="${l.id}"><b>${l.store}</b><small>${l.type} · ${l.city}</small><small>${money(l.vol)} a month · Net ${l.terms}</small>${l.follow&&l.stage!=="Won"&&l.stage!=="Lost"?`<small style="color:${dayDiff(l.follow,TODAY)<0?"var(--bad)":"var(--muted)"}">Follow up ${dayDiff(l.follow,TODAY)<0?"overdue, ":""}${dfmt(l.follow)}</small>`:""}</button>`;
+  const board=`<div class="lboard">${LSTAGES.map(st=>{const x=LEADS.filter(l=>l.stage===st);return `<div class="lcol"><h4>${st} <span class="badge ${stBadge[st]}">${x.length}</span></h4>${x.map(card).join("")||`<small style="color:var(--muted)">None</small>`}</div>`}).join("")}</div>`;
+  const list=`<div class="panel"><div class="tw"><table><thead><tr><th>Lead</th><th>Type</th><th>City</th><th>Source</th><th class="num">Monthly volume</th><th>Terms asked</th><th>Follow up</th><th>Stage</th><th></th></tr></thead><tbody>${LEADS.map(l=>`<tr><td><b>${l.store}</b><br><small style="color:var(--muted)">${l.contact}</small></td><td>${l.type}</td><td>${l.city}</td><td>${l.src}</td><td class="num">${money(l.vol)}</td><td>Net ${l.terms}</td><td>${l.follow?dfmt(l.follow):""}</td><td><span class="badge ${stBadge[l.stage]}">${l.stage}</span></td><td><button class="btn btn-ghost btn-sm" data-act="lead" data-id="${l.id}">Open</button></td></tr>`).join("")}</tbody></table></div></div>`;
+  return `<style>.lboard{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:10px;overflow-x:auto;padding-bottom:6px}.lcol{background:var(--panel2,#f4f6f8);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:120px}.lcol h4{margin:0 0 4px;font-size:13px;display:flex;justify-content:space-between;align-items:center}.lcard{text-align:left;border:1px solid var(--line,#dde2e7);background:var(--panel,#fff);border-radius:8px;padding:9px 10px;display:flex;flex-direction:column;gap:2px;cursor:pointer;font:inherit;color:inherit}.lcard small{color:var(--muted)}</style>
+  <div class="kpis">${kpi("users","Open leads",open.length,"Not yet won or lost")}${kpi("card","Expected monthly volume",money(sumBy(open,l=>l.vol)),"Open leads")}${kpi("bell","Follow-ups due",due.length,"Today, overdue or within 3 days")}${kpi("check","Won",LEADS.filter(l=>l.stage==="Won").length,"Converted to customers")}</div>
+  <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("leadTab",["Pipeline","List"])}<button class="btn btn-primary btn-sm" data-act="lead-new">${ic("plus",14)}New lead</button></div>
+  ${FIL.leadTab==="List"?list:board}<p class="note">Leads are retailer and distributor prospects. Buyers on Lazada, Shopee and TikTok are tracked as a sales channel on orders, not as leads.</p>`}
+function leadModal(id){
+  const l=LEADS.find(x=>x.id===id);
+  openModal(l.id+" · "+l.store,`<div class="kv"><div><b>Type</b>${l.type}</div><div><b>City</b>${l.city}</div><div><b>Contact</b>${l.contact}, ${l.phone}</div><div><b>Source</b>${l.src}</div><div><b>Expected monthly volume</b>${money(l.vol)}</div><div><b>Asked for</b>Net ${l.terms}, limit ${money(l.limit)}</div></div>
+  ${l.app?`<p class="note">Customer application ${l.app} was created from this lead. Review it in Customers.</p>`:""}
+  <div class="grid2"><label class="f">Stage<select id="ldStage">${LSTAGES.map(x=>`<option ${x===l.stage?"selected":""}>${x}</option>`).join("")}</select></label><label class="f">Next follow-up<input id="ldFollow" type="date" value="${l.follow?ymdv(l.follow):""}"></label></div>
+  <label class="f">Log a call or note<textarea id="ldNote" rows="2" placeholder="What was discussed?"></textarea></label>
+  <h4 style="margin:10px 0 6px">History</h4><ul class="feed">${l.notes.slice().reverse().map(n=>`<li><span class="dot"></span><div>${esc(n.t)}<small>${dfmt(n.d)}</small></div></li>`).join("")||`<li><div>No calls logged yet.<small></small></div></li>`}</ul>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Close</button>${!l.app&&l.stage!=="Lost"?`<button class="btn btn-ghost" data-act="lead-conv" data-id="${l.id}">Convert to customer</button>`:""}<button class="btn btn-accent" data-act="lead-save" data-id="${l.id}">Save</button>`);
+}
+function leadSave(id){const l=LEADS.find(x=>x.id===id),n=$("#ldNote").value.trim(),f=$("#ldFollow").value;
+  l.stage=$("#ldStage").value;l.follow=f?new Date(f+"T00:00:00"):null;if(n)l.notes.push({d:addDays(0),t:n});closeModal();toast(l.store+" updated: "+l.stage+".");renderPage()}
+function leadConv(id){const l=LEADS.find(x=>x.id===id);const a={id:"APP-"+(++appSeq),date:addDays(0),name:l.contact,company:l.store,email:"",mobile:l.phone,type:l.type,terms:l.terms,status:"Pending"};
+  APPS.push(a);l.app=a.id;l.stage="Credit review";l.notes.push({d:addDays(0),t:"Converted to customer application "+a.id+"."});closeModal();toast("Application "+a.id+" created from "+l.store+". Review it in Customers.");renderPage()}
+function leadNew(){openModal("New lead",`<label class="f">Store or company<input id="lnStore" placeholder="Business name"></label>
+  <div class="grid2"><label class="f">Type<select id="lnType"><option>Retailer</option><option>Sub-distributor</option><option>Institution</option></select></label><label class="f">City<input id="lnCity"></label></div>
+  <div class="grid2"><label class="f">Contact person<input id="lnContact"></label><label class="f">Mobile<input id="lnPhone" placeholder="+63"></label></div>
+  <div class="grid2"><label class="f">Source<select id="lnSrc">${LSRC.map(x=>`<option>${x}</option>`).join("")}</select></label><label class="f">Expected monthly volume (PHP)<input id="lnVol" type="number" min="0" value="100000"></label></div>
+  <div class="grid2"><label class="f">Credit limit asked (PHP)<input id="lnLimit" type="number" min="0" value="100000"></label><label class="f">Terms asked<select id="lnTerms"><option value="15">Net 15</option><option value="30" selected>Net 30</option><option value="45">Net 45</option><option value="60">Net 60</option></select></label></div>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="lead-create">Add lead</button>`)}
+function leadCreate(){const st=$("#lnStore").value.trim();if(!st){toast("Enter the store or company name.");return}
+  LEADS.push({id:"LD-"+(++ldSeq),store:st,type:$("#lnType").value,city:$("#lnCity").value.trim()||"Not set",contact:$("#lnContact").value.trim()||"Not set",phone:$("#lnPhone").value.trim(),vol:+$("#lnVol").value||0,terms:+$("#lnTerms").value,limit:+$("#lnLimit").value||0,src:$("#lnSrc").value,stage:"New",follow:addDays(1),notes:[]});closeModal();toast("Lead added to New.");renderPage()}
 /* ---------- events ---------- */
 document.addEventListener("click",e=>{
   const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act,id=t.dataset.id;
@@ -1605,6 +1656,7 @@ document.addEventListener("click",e=>{
   else if(a==="stmt")stmtModal(id);
   else if(a==="stmt-send"){closeModal();toast("Statement sent to accounts@customer.example.")}
   else if(a==="remind")remind(id);
+  else if(a==="lead")leadModal(id);else if(a==="lead-new")leadNew();else if(a==="lead-create")leadCreate();else if(a==="lead-save")leadSave(id);else if(a==="lead-conv")leadConv(id);
   else if(a==="pdc")pdcMove(id,+t.dataset.k,t.dataset.to);
   else if(a==="trf-new")trfNew();else if(a==="trf-create")trfCreate();else if(a==="trf-recv")trfRecv(id);
   else if(a==="sheet-close")sheetClose();
@@ -1636,7 +1688,7 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="nsstock")nsStockUpd()
   else if(c==="repdate"){if(!t.value)return;FIL[t.dataset.id==="from"?"repFrom":"repTo"]=t.value;if(!FIL.repFrom)FIL.repFrom=ymdv(addDays(-30));if(!FIL.repTo)FIL.repTo=ymdv(addDays(0));
     if(FIL.repFrom>FIL.repTo){if(t.dataset.id==="from")FIL.repTo=FIL.repFrom;else FIL.repFrom=FIL.repTo;toast("The start date was after the end date, so I matched them.")}renderPage()}
-  else if(c==="role"){ROLE=t.value;applyRole();if(!pageOK(page))setPage("dash");else renderPage();toast("Now viewing as "+ROLE+".")}
+  else if(c==="role"){ROLE=t.value;applyRole();if(!pageOK(page))setPage(ROLES[ROLE].pages[0]);else renderPage();toast("Now viewing as "+ROLE+".")}
   else if(c==="setcash"){SET.cash=Math.max(0,parseFloat(t.value)||0);toast("Opening cash balance set to "+money(SET.cash)+".")}
   else if(c==="setoverdue"){SET.assumeOverdue=t.value==="yes";toast(SET.assumeOverdue?"Overdue invoices are counted as collected this week.":"Overdue invoices are left out of the cash outlook.")}
   else if(c==="pogap")poGapUpd()
