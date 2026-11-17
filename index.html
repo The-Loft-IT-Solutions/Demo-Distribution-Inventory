@@ -735,7 +735,7 @@ function poGapUpd(){
   const e=$("#poGap");if(!e)return;
   const sn=$("#poSup").value,sp=SUP(sn);if(!sp)return;
   const terms=+$("#poTerms").value,dp=+$("#poDp").value;
-  let tot=0;for(let k=0;k<3;k++){const it=I($("#poItem"+k).value);if(!it)continue;tot+=toStock(it,$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0)*(parseFloat($("#poCost"+k).value)||it.cost)}
+  let tot=0;for(let k=0;k<poN;k++){const it=I($("#poItem"+k).value);if(!it)continue;tot+=toStock(it,$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0)*(parseFloat($("#poCost"+k).value)||it.cost)}
   const ov=BILLS.filter(b=>b.sup===sn&&billStat(b)==="Overdue").reduce((n,b)=>n+billBal(b),0),un=supBal(sn),cu=avgCustTerms(),L=[];
   if(ov>0)L.push(`<span style="color:var(--bad)"><b>${sn} has overdue bills${can("cash")||can("billpay")||can("po")?" of "+money(ov):""}</b> (${money(un)} unpaid in total). Ordering more before paying them can hold up this supplier's releases.</span>`);
   else if(un>0)L.push(`${sn} has ${money(un)} in unpaid bills, none overdue.`);
@@ -1335,23 +1335,25 @@ function supCreate(){
   if(intl)x.port=$("#snPort").value;
   SUPPS.push(x);FIL.supKind="All";FIL.purTab="Suppliers";closeModal();toast(name+" added to the supplier list.");renderPage();
 }
+let poN=3,poRowFn=null;
 function poNew(supName){
   const sn=typeof supName==="string"&&SUP(supName)?supName:"Supplier E", sp=SUP(sn);
   let sug=ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
   const sugd=sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
   const row=k=>{const it=sug[k],q=it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):"";
     return `<div class="porow" style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" data-chg="pogap" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" data-chg="pogap" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" data-chg="pogap" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
+  poN=3;poRowFn=row;
   openModal("New purchase order",`<div class="grid2"><label class="f">Supplier<select id="poSup" data-chg="posup">${["International","Local"].map(g=>`<optgroup label="${g}">${SUPPS.filter(x=>x.kind===g).map(x=>`<option ${x.name===sn?"selected":""}>${x.name} (${x.country})</option>`.replace("<option ",`<option value="${x.name}" `)).join("")}</optgroup>`).join("")}</select></label>
    <label class="f">Deliver to<select id="poWh"><option value="A">Warehouse A</option><option value="B">Warehouse B</option></select></label>
    <label class="f">Down payment<select id="poDp" data-chg="pogap">${DPOPTS.map(t=>`<option value="${t}">${dpLabel(t)}</option>`).join("")}</select></label>
    <label class="f">Payment terms${""}<select id="poTerms" data-chg="pogap">${TERMOPTS.map(t=>`<option value="${t}" ${t===sp.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select></label></div>
    <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual terms ${termLabel(sp.terms)}, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
-   <div style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost / stock unit</span></div>${row(0)}${row(1)}${row(2)}<div id="poGap" class="note" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px"></div>`,
+   <div style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost / stock unit</span></div><div id="poRows">${row(0)}${row(1)}${row(2)}</div><button class="btn btn-ghost btn-sm" type="button" data-act="po-addrow">${ic("plus",14)}Add item</button><div id="poGap" class="note" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px"></div>`,
    `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">Save as draft</button>`);
   poGapUpd();
 }
 function poCreate(){
-  const sn=$("#poSup").value, lines=[0,1,2].map(k=>({sku:$("#poItem"+k).value,qty:$("#poItem"+k).value?toStock(I($("#poItem"+k).value),$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0):0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
+  const sn=$("#poSup").value, lines=Array.from({length:poN},(_,k)=>k).map(k=>({sku:$("#poItem"+k).value,qty:$("#poItem"+k).value?toStock(I($("#poItem"+k).value),$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0):0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
   if(!lines.length){toast("Add at least one item with a quantity.");return}
   lines.forEach(l=>{if(!l.cost)l.cost=I(l.sku).cost});
   const p={id:"PO-"+(++poSeq),sup:sn,terms:+$("#poTerms").value,dp:+$("#poDp").value,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines};POS.push(p);
@@ -1533,7 +1535,7 @@ document.addEventListener("click",e=>{
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
   else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
-  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
+  else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-addrow"){$("#poRows").insertAdjacentHTML("beforeend",poRowFn(poN++));const r=$("#poRows").lastElementChild;r.scrollIntoView({block:"nearest"});r.querySelector("select").focus()}else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);else if(a==="bill-req"){const b=BILLS.find(x=>x.id===id);b.req={by:ROLE,date:addDays(0)};closeModal();toast("Payment requested for "+b.id+". Accounting will see it on the bill.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
 });
