@@ -293,7 +293,7 @@ td.num,th.num{text-align:right}
     </div>
   </div></section>
   <section class="sec" id="p-catalog" style="padding-top:0"><div class="in">
-    <h2 class="display">Catalog</h2><p class="lead">Prices are per stock unit (case, box, pallet and so on). Availability updates as stock arrives from port and leaves for delivery.</p>
+    <h2 class="display">Catalog</h2><p class="lead">Prices are per piece. Availability updates as stock arrives from port and leaves for delivery.</p>
     <div class="toolbar"><input type="search" data-q="cat" placeholder="Search products" aria-label="Search products"><select id="pcat" data-chg="catsel" aria-label="Category" style="min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff"></select></div>
     <div class="prods" id="prods"></div><div class="pager" id="pmore"></div>
   </div></section>
@@ -334,6 +334,7 @@ td.num,th.num{text-align:right}
     <button class="nl" data-act="page" data-id="sales"><span data-ic="truck" data-s="18"></span>Sales &amp; Deliveries</button>
     <button class="nl" data-act="page" data-id="vehicles"><span data-ic="pin" data-s="18"></span>Vehicles</button>
     <button class="nl" data-act="page" data-id="returns"><span data-ic="back" data-s="18"></span>Returns &amp; Damage</button>
+    <button class="nl" data-act="page" data-id="trail"><span data-ic="file" data-s="18"></span>Paper trail</button>
     <button class="nl" data-act="page" data-id="collections"><span data-ic="card" data-s="18"></span>Collections</button>
     <button class="nl" data-act="page" data-id="customers"><span data-ic="users" data-s="18"></span>Customers</button>
     <button class="nl" data-act="page" data-id="leads"><span data-ic="phone" data-s="18"></span>Leads (CRM)</button>
@@ -420,12 +421,12 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 /* ---------- demo options: sample data, warehouses, import costs ---------- */
 const CFG=(()=>{const c={data:"electronics",wh:1,imports:0};let st={};try{st=JSON.parse(localStorage.getItem("loftdemo.cfg")||"{}")}catch(e){}
   Object.assign(c,st);try{const q=new URLSearchParams(location.search);if(q.get("data"))c.data=q.get("data");if(q.get("wh"))c.wh=+q.get("wh");if(q.get("imports")!==null&&q.get("imports")!=="")c.imports=+q.get("imports")}catch(e){}
-  if(!["electronics","food","both"].includes(c.data))c.data="electronics";c.wh=c.wh===2?2:1;c.imports=c.imports?1:0;return c})();
+  c.data="electronics";c.wh=c.wh===2?2:1;c.imports=c.imports?1:0;return c})();
 const MULTI=CFG.wh===2, IMP=!!CFG.imports;
 /* ---------- sample data (generic, relative to today) ---------- */
 function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const R=rng(20261127), ri=(a,b)=>a+Math.floor(R()*(b-a+1));
-const UOMS=[{n:"Case",s:"case",p:"cases"},{n:"Box",s:"box",p:"boxes"},{n:"Pack",s:"pack",p:"packs"},{n:"Pallet",s:"pallet",p:"pallets"},{n:"Piece",s:"pc",p:"pcs"},{n:"Unit",s:"unit",p:"units"},{n:"Dozen",s:"dozen",p:"dozen"},{n:"Sack",s:"sack",p:"sacks"},{n:"Kg",s:"kg",p:"kg"},{n:"Liter",s:"L",p:"L"}];
+const UOMS=[{n:"Piece",s:"pc",p:"pcs"}];
 const uom=n=>UOMS.find(x=>x.n===n)||{n,s:String(n).toLowerCase(),p:String(n).toLowerCase()};
 const rnd=q=>Math.round(q*1e6)/1e6;
 const ul=(n,q)=>Math.abs(q-1)<1e-9?uom(n).s:uom(n).p;
@@ -471,7 +472,7 @@ const ITEMS=[
   ITEMS.push(mk("SKU-"+tag,cat+" Item "+String(n-10).padStart(2,"0")+" ("+pcs+" pcs/case)",cat,cost,price,reorder,bs));
  }})();
 /* electronics catalog: 17 appliance SKUs, no expiry */
-const WARR={Televisions:24,"Air Conditioners":36,Refrigerators:24,"Washing Machines":24,Fans:12,"Small Appliances":12,Audio:12};
+const WARR={Televisions:24,"Air Conditioners":36,Refrigerators:24,"Washing Machines":24,Fans:12,"Small Appliances":12,Audio:12,"Mobile Phones & Tablets":12,"Computers & Accessories":12,Lighting:12,"Spare Parts":3};
 const ELEC=[
  ["43-inch Smart LED TV","Televisions",11500,14900,10,24,8],["55-inch Smart LED TV","Televisions",19500,24900,8,14,5],
  ["Inverter Aircon 1.0 HP","Air Conditioners",18500,23900,8,6,2],["Inverter Aircon 1.5 HP","Air Conditioners",24000,30900,8,16,5],
@@ -481,19 +482,21 @@ const ELEC=[
  ["Induction Cooker","Small Appliances",1850,2590,20,48,16],["Blender 1.5 L","Small Appliances",650,950,30,90,30],
  ["Bluetooth Speaker","Audio",1200,1750,25,64,20],["Soundbar 2.1","Audio",3500,4790,10,22,7],
  ["Vacuum Cleaner 1600 W","Small Appliances",3200,4390,10,18,6],["Electric Kettle 1.7 L","Small Appliances",450,690,30,70,22],
- ["Water Dispenser Hot and Cold","Small Appliances",4800,6490,8,0,0]];
+ ["Water Dispenser Hot and Cold","Small Appliances",4800,6490,8,0,0],
+ ["Smartphone 6.5-inch 128 GB","Mobile Phones & Tablets",7200,9490,15,40,12],["Tablet 10-inch 64 GB","Mobile Phones & Tablets",5800,7690,10,18,6],
+ ["Laptop 15.6-inch Core i5","Computers & Accessories",28500,35900,6,12,4],["Wireless Mouse","Computers & Accessories",260,390,40,150,50],["Power Bank 20000 mAh","Computers & Accessories",780,1190,30,80,25],
+ ["LED Bulb 9 W","Lighting",55,95,100,600,200],["LED Panel Light 18 W","Lighting",210,360,60,240,80],
+ ["Aircon Compressor 1.0 HP","Spare Parts",4200,5890,6,10,3],["Refrigerator Thermostat","Spare Parts",420,690,20,45,15],["Washing Machine Drain Pump","Spare Parts",560,890,15,30,10],["TV Remote Control (universal)","Spare Parts",110,190,50,120,40],["Fan Motor 16-inch","Spare Parts",680,1090,15,24,8]];
 (()=>{
-  const food=CFG.data!=="electronics", mkE=(sku,n,k)=>{const e=ELEC[n],tag=sku.slice(4);
+  const mkE=(sku,n,k)=>{const e=ELEC[n],tag=sku.slice(4);
     const bs=[Bt("L2410-"+tag,null,Math.round(e[5]*.6),Math.round(e[6]*.6)),Bt("L2411-"+tag,null,e[5]-Math.round(e[5]*.6),e[6]-Math.round(e[6]*.6))];
-    const it=mk(sku,e[0],e[1],e[2],e[3],e[4],bs);it.uom="Unit";it.alts=[];it.food=false;it.shelf=0;it.warr=WARR[e[1]]||12;it.serial=e[3]>=3000;return it};
-  if(CFG.data==="electronics"){
+    const it=mk(sku,e[0],e[1],e[2],e[3],e[4],bs);it.uom="Piece";it.alts=[];it.food=false;it.shelf=0;it.warr=WARR[e[1]]||12;it.serial=e[3]>=3000&&e[1]!=="Spare Parts";it.pn="PN-"+(40000+n*13);it.model="M-"+e[1].replace(/[^A-Za-z]/g,"").slice(0,3).toUpperCase()+"-"+(200+n*7);it.sns=[];return it};
+  {
     Object.keys(CATS).forEach(k=>{delete CATS[k]});Object.keys(SHELF).forEach(k=>{delete SHELF[k]});
     const keep=ITEMS.slice(0,17);ITEMS.length=0;
     ELEC.forEach((e,n)=>{const sku="SKU-"+(1001+n),old=keep[n];Object.assign(CATS,{[e[1]]:0});const it=mkE(sku,n);
       if(old&&n<10){it.batches.forEach((b,j)=>{const o=old.batches[Math.min(j,old.batches.length-1)];b.lot=o.lot});}
       ITEMS.push(it)});
-  }else if(CFG.data==="both"){
-    ELEC.forEach((e,n)=>{if(CATS[e[1]]===undefined)CATS[e[1]]=0;ITEMS.push(mkE("SKU-"+(2001+n),n))});
   }
 })();
 const I=sku=>ITEMS.find(i=>i.sku===sku);
@@ -598,15 +601,17 @@ const SUPPS=[
  {name:"Supplier H",kind:"Local",country:"Philippines",city:"Quezon City",cur:"PHP",terms:30,lead:2,cats:["Snacks","Beverages"],email:"sales@supplier-h.example",phone:"+63 2 8000 0000"}
 ];
 if(CFG.data==="electronics"){
-  [["Shenzhen","China","Televisions,Audio"],["Guangzhou","China","Air Conditioners,Refrigerators,Washing Machines"],["Ningbo","China","Small Appliances,Fans"],["Foshan","China","Fans,Small Appliances"]].forEach((x,k)=>{Object.assign(SUPPS[k],{city:x[0],country:x[1],cats:x[2].split(",")})});
-  [["Televisions","Audio"],["Air Conditioners","Refrigerators"],["Small Appliances","Fans"],["Washing Machines","Small Appliances"]].forEach((c,k)=>{SUPPS[4+k].cats=c});
+  [["Shenzhen","China","Televisions,Audio,Mobile Phones & Tablets,Computers & Accessories"],["Guangzhou","China","Air Conditioners,Refrigerators,Washing Machines,Spare Parts"],["Ningbo","China","Small Appliances,Fans,Lighting"],["Foshan","China","Fans,Small Appliances,Spare Parts,Lighting"]].forEach((x,k)=>{Object.assign(SUPPS[k],{city:x[0],country:x[1],cats:x[2].split(",")})});
+  [["Televisions","Audio","Mobile Phones & Tablets"],["Air Conditioners","Refrigerators","Spare Parts"],["Small Appliances","Fans","Lighting"],["Washing Machines","Small Appliances","Computers & Accessories"]].forEach((c,k)=>{SUPPS[4+k].cats=c});
   Object.values(CUSTS).forEach(c=>{c.limit*=4});
 }
-const termLabel=t=>t===0?"Cash on delivery":"Net "+t+" days";
+const termLabel=t=>t===-1?"Full payment upon loading":t===0?"Cash on delivery":"Net "+t+" days";
+const termLabelP=p=>(p.dp||0)>=100?"Paid in advance":"Full payment upon loading ("+(100-(p.dp||0))+"% of PO)";
+const termOptsHtml=dp=>dp<100?`<option value="-1">Full payment upon loading (${100-dp}% of PO)</option>`:`<option value="0">Not applicable (100% paid in advance)</option>`;
 const TERMOPTS=[0,15,30,45,60], DPOPTS=[0,30,50,100];
 const dpLabel=d=>d===0?"None":d===100?"100% paid in advance":d+"% advance";
 const dpAmt=p=>Math.round(poTotal(p)*(p.dp||0)/100), balAmt=p=>poTotal(p)-dpAmt(p);
-const termShort=p=>p.dp===100?"Advance":(p.dp?p.dp+"% + ":"")+(p.terms===0?"COD":"Net "+p.terms);
+const termShort=p=>p.dp===100?"Advance":p.dp?p.dp+"% + "+(100-p.dp)+"% on loading":"100% on loading";
 const APPS=[
  {id:"APP-103",date:addDays(-1),name:"Applicant 3",company:"Applicant Store A",email:"owner@applicant-a.example",mobile:"+63 900 000 0003",type:"Retailer",terms:30,status:"Pending"},
  {id:"APP-102",date:addDays(-2),name:"Applicant 2",company:"Applicant Trading B",email:"owner@applicant-b.example",mobile:"+63 900 000 0002",type:"Sub-distributor",terms:60,status:"Pending"},
@@ -663,6 +668,7 @@ POS.forEach(p=>{p.terms=SUP(p.sup).terms;p.dp=0});
   if(k===0)b.payments.push({date:addDays(-2),amt:Math.round(amt*.4),method:"Check",ref:"CHK-2204"});
   if(k===1)b.payments.push({date:addDays(-5),amt,method:"Bank transfer",ref:"BT-5120"});
 });
+POS.forEach(p=>{if((p.dp||0)<100)p.terms=-1});
 const CUSTNAME=id=>CUSTS[id].name;
 makeReturn(ORDERS.find(x=>x.id==="SO-1003"),"SKU-1004",6,"Damaged on delivery","Write off as damage",addDays(-9));
 makeReturn(ORDERS.find(x=>x.id==="SO-1006"),"SKU-1008",10,"Wrong item","Back to stock",addDays(-4));
@@ -691,11 +697,24 @@ function showView(v){
 }
 function showMenu(){$("#navigator").classList.remove("hidden");$("#switcher").classList.add("hidden");["public","console","driver"].forEach(x=>$("#view-"+x).classList.add("hidden"))}
 
+/* ---------- paper trail ---------- */
+const AUDIT=[];
+function audit(ref,act,detail,who){AUDIT.push({t:new Date(),ref,act,detail:detail||"",who:who||ROLE})}
+const tfmt=t=>dfmt(t)+", "+t.toLocaleTimeString("en-PH",{hour:"numeric",minute:"2-digit",timeZone:"Asia/Manila"});
+[[-20,"PO-3114","Purchase order received","Goods received at Warehouse B","Warehouse Manager"],[-14,"SHP-2406","Shipment received","Every piece scanned, none damaged","Inbound/Outbound Clerk"],[-9,"RET-201","Return inspected","Damaged, written off. Credit note issued","Warehouse Manager"],[-6,"SHP-2407","Shipment received","Every piece scanned, none damaged","Inbound/Outbound Clerk"],[-4,"RET-202","Return inspected","Checked and put back in stock","Stockman"],[-3,"DMG-103","Damage reported","5 pieces, handling","Stockman"],[-1,"SO-1010","Out for delivery","Loaded and dispatched","Inbound/Outbound Clerk"]].forEach(([d,ref,act,det,who])=>AUDIT.push({t:addDays(d),ref,act,detail:det,who}));
+const trailFor=ref=>AUDIT.filter(a=>a.ref===ref).slice().reverse();
+const trailTable=L=>`<div class="tw"><table><thead><tr><th>When</th><th>Document</th><th>Action</th><th>Detail</th><th>By</th></tr></thead><tbody>${L.map(a=>`<tr><td>${tfmt(a.t)}</td><td><b>${esc(a.ref)}</b></td><td>${esc(a.act)}</td><td>${esc(a.detail)}</td><td>${esc(a.who)}</td></tr>`).join("")||`<tr><td colspan="5">Nothing recorded yet.</td></tr>`}</tbody></table></div>`;
+const trailBlock=ref=>{const L=trailFor(ref);return L.length?`<h4 style="margin:14px 0 6px">Paper trail</h4>${trailTable(L)}`:""};
+function rTrailTbl(){const q=(FIL.trailQ||"").toLowerCase(),L=AUDIT.filter(a=>!q||(a.ref+" "+a.act+" "+a.detail+" "+a.who).toLowerCase().includes(q)).slice().reverse(),p=FIL.trailPage||0;
+  return trailTable(L.slice(p*PG,(p+1)*PG))+pager("trail",L.length)+`<p class="note" style="margin-top:8px">Every create, send, scan, receive, inspect and deliver action is recorded with who did it and when. Entries can't be edited or deleted.</p>`}
+function rTrail(){return `<div class="toolbar"><input type="search" data-q="trail" placeholder="Search document, action or person" value="${esc(FIL.trailQ||"")}" aria-label="Search paper trail"></div><div class="panel" id="trailTbl">${rTrailTbl()}</div>`}
+
 /* ---------- modal ---------- */
 function openModal(title,body,foot){$("#mTitle").textContent=title;$("#mBody").innerHTML=body;$("#mFoot").innerHTML=foot||`<button class="btn btn-ghost" data-act="modal-close">Close</button>`;$("#modalBack").classList.add("open");paintIcons($("#modal"))}
 function closeModal(){$("#modalBack").classList.remove("open")}
 $("#modalBack").addEventListener("click",e=>{if(e.target.id==="modalBack")closeModal()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();sheetClose();$("#side").classList.remove("open");$("#sideBack").classList.remove("open")}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="scIn"&&RCV){e.preventDefault();recvScan(e.target.value);recvForm(RCV.id,true);return}
+  if(e.key==="Escape"){closeModal();sheetClose();$("#side").classList.remove("open");$("#sideBack").classList.remove("open")}});
 
 /* ---------- PUBLIC ---------- */
 const cart={};
@@ -716,15 +735,15 @@ function openCart(){
 }
 
 /* ---------- CONSOLE ---------- */
-const ALLP=["dash","purchasing","inbound","inventory","sales","vehicles","returns","collections","customers","leads","reports","settings","users"];
+const ALLP=["dash","purchasing","inbound","inventory","sales","vehicles","returns","trail","collections","customers","leads","reports","settings","users"];
 const EXT="Partner Company (external)";
 const ROLES={
  "Owner":{pages:ALLP,caps:["cost","items","writeoff","po","pay","billpay","credit","apps","cash","cust","admin"]},
- "Warehouse Manager":{pages:["dash","purchasing","inbound","inventory","sales","vehicles","returns","customers","reports","settings"],caps:["cost","items","writeoff","po"],reps:["Inbound stock","Outbound stock","Returns","Vendor returns","Damage"]},
+ "Warehouse Manager":{pages:["dash","purchasing","inbound","inventory","sales","vehicles","returns","trail","customers","reports","settings"],caps:["cost","items","writeoff","po"],reps:["Inbound stock","Outbound stock","Returns","Vendor returns","Damage"]},
  "Inbound/Outbound Clerk":{pages:["dash","inbound","inventory","sales","vehicles","returns"],caps:[]},
  "Stockman":{pages:["dash","inventory","returns"],caps:["writeoff"]},
  "Sales Officer":{pages:["dash","inventory","sales","customers","leads"],caps:["cust"]},
- "Accounting":{pages:["dash","collections","purchasing","customers","reports"],caps:["cost","pay","billpay","credit","apps","cash","cust"]},
+ "Accounting":{pages:["dash","collections","purchasing","customers","reports","trail"],caps:["cost","pay","billpay","credit","apps","cash","cust"]},
  [EXT]:{pages:["purchasing"],caps:[]}
 };
 const CAPLBL={admin:"Company settings, users and the stock rule",cash:"See the cash outlook",cust:"Add customers",po:"Create and send purchase orders",cost:"See item cost and landed cost",items:"Add and import items",writeoff:"File damage and write-offs",pay:"Record customer payments",billpay:"Pay supplier bills",credit:"Approve credit overrides",apps:"Approve customer applications"};
@@ -736,12 +755,12 @@ function applyRole(){
   $$("#side .grp").forEach(g=>{const n=g.textContent.trim();g.style.display=(n==="Reports"&&!pageOK("reports"))||(n==="Settings"&&!pageOK("settings")&&!pageOK("users"))?"none":""});
   const r=$("#roleSel");if(r){if(!r.options.length)r.innerHTML=Object.keys(ROLES).map(x=>`<option>${x}</option>`).join("");r.value=ROLE}
 }
-const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",leads:"Leads (CRM)",reports:"Reports",returns:"Returns & Damage"};
+const PAGES={dash:"Dashboard",purchasing:"Purchasing",vehicles:"Vehicles",inbound:"Inbound Shipments",inventory:"Inventory",sales:"Sales & Deliveries",collections:"Collections",settings:"Settings",users:"Users",customers:"Customers",leads:"Leads (CRM)",reports:"Reports",returns:"Returns & Damage",trail:"Paper trail"};
 let page="dash"; const FIL={topP:"30 days",custTab:"Customers",appF:"Pending",purTab:"Purchase orders",po:"All",bills:"All",supKind:"All",inbound:"All",inventory:"All",sales:"All",salesCh:"All",leadTab:"Pipeline",pdcF:"All",collections:"All",collTab:"Invoices",salesTab:"Orders",custType:"All",rep:"Sales",repP:"30 days"};
 function setPage(p){if(!pageOK(p)){toast("Your role ("+ROLE+") can't open "+PAGES[p]+".");return}page=p;$$("#side .nl").forEach(b=>b.classList.toggle("active",b.dataset.id===p));$("#side").classList.remove("open");$("#sideBack").classList.remove("open");renderPage();window.scrollTo(0,0)}
 function renderPage(){
   $("#pageTitle").textContent=PAGES[page];document.title=PAGES[page]+" | Distribution & Inventory Management System";
-  const R={leads:rLeads,dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:rCustomers,reports:rReports,returns:rReturns};
+  const R={leads:rLeads,dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:rCustomers,reports:rReports,returns:rReturns,trail:rTrail};
   applyRole();$("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
 const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
@@ -786,13 +805,14 @@ function cashPanel(){
 function poGapUpd(){
   const e=$("#poGap");if(!e)return;
   const sn=$("#poSup").value,sp=SUP(sn);if(!sp)return;
-  const terms=+$("#poTerms").value,dp=+$("#poDp").value;
+  const dp=+$("#poDp").value,ts=$("#poTerms");if(ts&&ts.dataset.dp!==String(dp)){ts.innerHTML=termOptsHtml(dp);ts.dataset.dp=dp}
+  const terms=+ts.value,tE=Math.max(0,terms),tl=terms<0?"on loading":terms?"Net "+terms:"on delivery";
   let tot=0;for(let k=0;k<poN;k++){const it=I($("#poItem"+k).value);if(!it)continue;tot+=toStock(it,$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0)*(parseFloat($("#poCost"+k).value)||it.cost)}
   const ov=BILLS.filter(b=>b.sup===sn&&billStat(b)==="Overdue").reduce((n,b)=>n+billBal(b),0),un=supBal(sn),cu=avgCustTerms(),L=[];
   if(ov>0)L.push(`<span style="color:var(--bad)"><b>${sn} has overdue bills${can("cash")||can("billpay")||can("po")?" of "+money(ov):""}</b> (${money(un)} unpaid in total). Ordering more before paying them can hold up this supplier's releases.</span>`);
   else if(un>0)L.push(`${sn} has ${money(un)} in unpaid bills, none overdue.`);
-  L.push(cu-terms>=7?`You pay this supplier on ${terms?"Net "+terms:"delivery"}, but customers pay on average on Net ${cu}. Expect to fund about ${cu-terms} days of this stock yourself.`:`This supplier's terms (${terms?"Net "+terms:"on delivery"}) are close to or longer than what customers pay on average (Net ${cu}).`);
-  if(tot>0){const due=addDays(sp.lead+terms),adv=Math.round(tot*dp/100),need=tot-adv,cash=cashAt(due);
+  L.push(cu-tE>=7?`You pay this supplier ${tl}, but customers pay on average on Net ${cu}. Expect to fund about ${cu-tE} days of this stock yourself.`:`This supplier's terms (${tl}) are close to or longer than what customers pay on average (Net ${cu}).`);
+  if(tot>0){const due=addDays(terms<0?3:sp.lead+terms),adv=Math.round(tot*dp/100),need=tot-adv,cash=cashAt(due);
     if(can("cash"))L.push(`<span${cash-need<0?' style="color:var(--bad)"':""}>This order is ${money(tot)}${adv?", with "+money(adv)+" due on confirmation":""}. Projected cash around the due date (${dfmt(due)}) is ${money(cash)} before it${cash-need<0?", which would not cover the "+money(need)+" balance.":"."}</span>`);
     else if(cash-need<0)L.push(`<span style="color:var(--bad)">Cash may be tight when this order falls due. Check with Accounting before sending it.</span>`)}
   e.innerHTML=L.map(x=>`<p style="margin:0 0 4px">${x}</p>`).join("");
@@ -833,23 +853,60 @@ function shipModal(id,m){
   const LBL={freight:"Freight",duties:"Duties",brokerage:"Brokerage",port:"Port fees"};
   const rows=s.lines.map(l=>{const val=l.qty*I(l.sku).cost, share=ALLOC==="Value"?ex*val/goods:ex*l.qty/units;return {l,val,share,unit:(val+share)/l.qty}});
   openModal(s.id+" · "+(s.container||(s.sea?"Domestic sea freight":"Local delivery")),`<div class="kv"><div><b>Supplier</b>${s.supplier}</div><div><b>Point of origin</b>${originOf(s.supplier)}</div><div><b>Port</b>${s.port}</div>${s.local?"":`<div><b>Bill of lading</b>${s.bl||"Not entered"}</div>`}${s.sea?`<div><b>Shipping line</b>${s.sea.line}</div><div><b>Waybill or B/L</b>${s.sea.bl||"Not entered"}</div><div><b>Origin port</b>${s.sea.origin}</div>`:""}${s.veh1?`<div><b>Truck to port</b>${s.veh1.plate}, ${s.veh1.owner==="Own"?"own":s.veh1.owner}</div>`:""}${s.veh?`<div><b>Vehicle</b>${s.veh.plate}, ${s.veh.type}</div><div><b>Driver</b>${s.veh.driver}${s.veh.owner==="Own"?" (own)":", "+s.veh.owner}</div>`:""}<div><b>ETA</b>${dfmt(s.eta)}</div><div><b>Destination</b>${WH[s.wh]}</div></div>
-   <ul class="tl">${stg(s).map((st,k)=>s.local&&!s.sea&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>
+   <ul class="tl">${stg(s).map((st,k)=>s.local&&!s.sea&&k<3?"":`<li class="${k<s.stage?"done":k===s.stage?"cur":""}"><span class="c">${k<s.stage||(k===s.stage&&s.stage===4)?ic("check",12):""}</span>${st.t}</li>`).join("")}</ul>${s.rcv?rcvReport(s):""}
    ${can("cost")&&IMP?"":`<div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${fq(r.l.sku,r.l.qty)}</td></tr>`).join("")}</tbody></table></div>`}
    <div ${can("cost")&&IMP?"":"hidden"}>${s.local&&!s.sea?"":`<label class="f">Spread freight, duties and fees across items by<select data-chg="alloc" data-id="${s.id}"><option ${ALLOC==="Value"?"selected":""}>Value</option><option ${ALLOC==="Quantity"?"selected":""}>Quantity</option></select></label>`}
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Goods cost</th><th class="num">Added costs</th><th class="num">Landed cost / unit</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${I(r.l.sku).name}</td><td class="num">${fq(r.l.sku,r.l.qty)}</td><td class="num">${money(r.val)}</td><td class="num">${money(r.share)}</td><td class="num"><b>${money(r.unit)}</b></td></tr>`).join("")}</tbody></table></div>
    <div class="sum"><div><span>Goods value</span><span>${money(goods)}</span></div>${s.local&&!s.sea?"":Object.keys(s.costs).map(k=>`<div><span>${LBL[k]}</span><span>${money(s.costs[k])}</span></div>`).join("")}<div class="tot"><span>Total landed cost</span><span>${money(goods+ex)}</span></div></div></div>
-   <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>`,
-   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4&&!s.local?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">Advance to: ${next.k}</button>`:""}`);
+   <p class="note" style="margin-top:8px">Amounts are samples. Duty and tax computation should be confirmed with the customs broker.</p>${trailBlock(s.id)}`,
+   `<button class="btn btn-ghost" data-act="modal-close">Close</button>${s.stage<4&&!s.local?`<button class="btn btn-ghost" data-act="ship-edit" data-id="${s.id}">Edit details</button>`:""}${next?`<button class="btn btn-accent" data-act="ship-next" data-id="${s.id}">${s.stage===3?"Scan and receive":"Advance to: "+next.k}</button>`:""}`);
 }
 function shipNext(id,force){
   const s=SHIPMENTS.find(x=>x.id===id);if(s.stage>=4)return;
   if(s.stage===2&&!s.veh&&(!s.local||s.sea)&&!force){trkForm("ship",id);return}
+  if(s.stage===3&&!s.rcv){recvForm(id,true);return}
   s.stage++;
-  if(s.stage===4){s.lines.forEach(l=>{const it=I(l.sku);addStock(it,s.wh,l.qty,"L"+s.id.slice(4)+"-"+l.sku.slice(4),it.food?addDays(it.shelf):null)});toast(s.id+" received at "+WH[s.wh]+". Stock and batch expiry updated.")}else toast(s.id+" is now: "+stg(s)[s.stage].k);
+  if(s.stage===4){const r=s.rcv;s.lines.forEach(l=>{const it=I(l.sku),rl=r.lines.find(x=>x.sku===l.sku)||{dmg:0},lot="L"+s.id.slice(4)+"-"+l.sku.slice(4);addStock(it,s.wh,l.qty-rl.dmg,lot,it.food?addDays(it.shelf):null);if(rl.dmg>0)DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:l.sku,wh:s.wh,lot,qty:rl.dmg,reason:"Damaged on arrival, "+r.reason+" ("+s.id+")",src:s.id});if(it.serial)(it.sns=it.sns||[]).push(...(r.serials[l.sku]||[]))});
+    audit(s.id,"Shipment received",r.scanned+" pieces scanned"+(r.dmgTotal?", "+r.dmgTotal+" damaged ("+r.reason+")":", none damaged")+", at "+WH[s.wh]);
+    toast(s.id+" received at "+WH[s.wh]+". All "+r.scanned+" pieces scanned, stock updated"+(r.dmgTotal?" and "+r.dmgTotal+" damaged pieces filed as damage reports.":"."))}else{audit(s.id,"Shipment moved",stg(s)[s.stage].k);toast(s.id+" is now: "+stg(s)[s.stage].k)}
   const lp=POS.find(x=>x.id&&x.shp===s.id);
-  if(lp&&s.local&&s.stage===4&&!lp.recv){lp.recv=addDays(0);const bal=balAmt(lp);if(bal>0){const b=mkBill({sup:lp.sup,po:lp.id,type:lp.dp?"Balance":"Goods",date:addDays(0),due:addDays(lp.terms),amt:bal});toast(s.id+" received at "+WH[s.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.")}}
+  if(lp&&s.local&&s.stage===4&&!lp.recv){lp.recv=addDays(0);const bal=balAmt(lp);if(bal>0&&!BILLS.some(x=>x.po===lp.id&&(x.type==="Balance"||x.type==="Goods"))){const b=mkBill({sup:lp.sup,po:lp.id,type:lp.dp?"Balance":"Goods",date:addDays(0),due:addDays(Math.max(0,lp.terms)),amt:bal});toast(s.id+" received at "+WH[s.wh]+". Stock updated and "+b.id+" for "+money(b.amt)+" added to payables.")}}
   closeModal();renderPage();
 }
+let RCV=null;
+const rcvInit=s=>{RCV={id:s.id,sc:{},dm:{},ser:{},reason:"Broken in transit"};s.lines.forEach(l=>{RCV.sc[l.sku]=0;RCV.dm[l.sku]=0;RCV.ser[l.sku]=[]})};
+function recvScan(raw){
+  const s=SHIPMENTS.find(x=>x.id===RCV.id),v=String(raw||"").trim();if(!v)return false;
+  const parts=v.split("/").map(x=>x.trim()),code=parts[0].toLowerCase(),serial=parts[1],l=s.lines.find(x=>{const i=I(x.sku);return [i.sku,i.pn,i.model].some(y=>y&&y.toLowerCase()===code)});
+  if(!l){toast("The code "+parts[0]+" is not on this shipment.");return false}
+  const it=I(l.sku);if(RCV.sc[l.sku]>=l.qty){toast("All "+l.qty+" pieces of "+it.name+" are already scanned.");return false}
+  const n=RCV.sc[l.sku]+1;
+  if(it.serial){const sn=serial||"SN"+it.sku.replace(/\D/g,"")+"-"+s.id.replace(/\D/g,"")+"-"+String(n).padStart(3,"0");
+    if(RCV.ser[l.sku].includes(sn)||ITEMS.some(x=>(x.sns||[]).includes(sn))){toast("Serial number "+sn+" is already recorded.");return false}RCV.ser[l.sku].push(sn)}
+  RCV.sc[l.sku]=n;return true;
+}
+function recvForm(id,focus){
+  const s=SHIPMENTS.find(x=>x.id===id);if(!RCV||RCV.id!==id)rcvInit(s);
+  const tot=s.lines.reduce((n,l)=>n+l.qty,0),sc=s.lines.reduce((n,l)=>n+RCV.sc[l.sku],0),dm=s.lines.reduce((n,l)=>n+RCV.dm[l.sku],0),done=sc===tot;
+  openModal("Scan and receive "+s.id,`<p class="note" style="margin:0 0 10px">Scan every piece before receiving. Scan the barcode, or type the SKU, product number or model number and press Enter. For serial-tracked items type <b>code/serial</b>. Report damaged pieces on this screen.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="scIn" placeholder="Scan or type a code, then Enter" style="flex:1;min-width:200px" autocomplete="off"><button class="btn btn-ghost btn-sm" data-act="rc-sim">Simulate scan</button><button class="btn btn-ghost btn-sm" data-act="rc-all">Scan all remaining (demo)</button></div>
+  <div class="tw"><table><thead><tr><th>Item</th><th class="num">Expected</th><th class="num">Scanned</th><th class="num">Damaged</th><th>Status</th></tr></thead><tbody>${s.lines.map(l=>{const it=I(l.sku),g=RCV.sc[l.sku],ok=g===l.qty;return `<tr><td>${it.name}<br><span class="note">${it.sku} · ${it.pn||"-"} · ${it.model||"-"}${it.serial?" · serial tracked":""}</span></td><td class="num">${l.qty}</td><td class="num"><b>${g}</b></td><td class="num"><input type="number" min="0" max="${g}" value="${RCV.dm[l.sku]}" data-chg="rcdmg" data-id="${l.sku}" style="width:64px" aria-label="Damaged pieces"></td><td><span class="badge ${ok?"b-ok":"b-warn"}">${ok?"Complete":(l.qty-g)+" to scan"}</span></td></tr>`}).join("")}</tbody></table></div>
+  <div class="sum"><div><span>Scanned</span><span>${sc} of ${tot} pieces</span></div><div><span>Reported damaged</span><span>${dm} pieces</span></div></div>
+  <label class="f" style="margin-top:10px">Damage reason (if any)<select data-chg="rcwhy">${["Broken in transit","Water damage","Handling","Wrong or missing parts","Other"].map(x=>`<option ${x===RCV.reason?"selected":""}>${x}</option>`).join("")}</select></label>
+  ${done?"":`<p class="note" style="margin-top:8px">Receiving unlocks when every piece has been scanned.</p>`}`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="rc-confirm" data-id="${id}" ${done?"":"disabled"}>Receive shipment</button>`);
+  if(focus){const e=$("#scIn");if(e)e.focus()}
+}
+function recvAll(){const s=SHIPMENTS.find(x=>x.id===RCV.id);s.lines.forEach(l=>{while(RCV.sc[l.sku]<l.qty&&recvScan(I(l.sku).sku));});recvForm(RCV.id,true)}
+function recvSim(){const s=SHIPMENTS.find(x=>x.id===RCV.id),l=s.lines.find(x=>RCV.sc[x.sku]<x.qty);if(l)recvScan(I(l.sku).sku);recvForm(RCV.id,true)}
+function recvConfirm(id){
+  const s=SHIPMENTS.find(x=>x.id===id);if(!RCV||RCV.id!==id)return;
+  const sc=s.lines.reduce((n,l)=>n+RCV.sc[l.sku],0),tot=s.lines.reduce((n,l)=>n+l.qty,0);if(sc!==tot){toast("Scan every piece before receiving.");return}
+  const dm=s.lines.reduce((n,l)=>n+RCV.dm[l.sku],0);
+  s.rcv={by:ROLE,date:new Date(),scanned:sc,dmgTotal:dm,reason:RCV.reason,serials:RCV.ser,lines:s.lines.map(l=>({sku:l.sku,expected:l.qty,scanned:RCV.sc[l.sku],dmg:RCV.dm[l.sku]}))};
+  RCV=null;shipNext(id,true);
+}
+function rcvReport(s){const r=s.rcv;return `<h4 style="margin:14px 0 6px">Receiving report</h4><p class="note" style="margin:0 0 6px">Scanned by ${esc(r.by)}, ${tfmt(r.date)}. ${r.dmgTotal?r.dmgTotal+" damaged ("+esc(r.reason)+").":"No damage reported."}</p><div class="tw"><table><thead><tr><th>Item</th><th class="num">Expected</th><th class="num">Scanned</th><th class="num">Damaged</th><th class="num">Received</th></tr></thead><tbody>${r.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${l.expected}</td><td class="num">${l.scanned}</td><td class="num">${l.dmg}</td><td class="num">${l.expected-l.dmg}</td></tr>`).join("")}</tbody></table></div>`}
 function rSales(){
   const f=FIL.sales, rows=ORDERS.filter(o=>(f==="All"||o.status===f)&&(FIL.salesCh==="All"||(o.ch||"Offline")===FIL.salesCh)).slice().sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id)), uo=unitsOut(30);
   const perItem=`<div class="panel"><h2>Units out per item (last 30 days)</h2><div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty out</th><th class="num">Sales value</th></tr></thead><tbody>${uo.map(x=>`<tr><td>${I(x.sku).name}</td><td class="num">${fq(x.sku,x.q)}</td><td class="num">${money(x.v)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="num"><b>${NUM.format(uo.reduce((n,x)=>n+x.q,0))} units</b></td><td class="num"><b>${money(uo.reduce((n,x)=>n+x.v,0))}</b></td></tr></tbody></table></div></div>`;
@@ -874,7 +931,7 @@ function soNext(id){
   }else if(nx==="Delivered"){deliver(o,"Customer representative")}
   else if(o.status==="Credit Hold"){toast("Credit override approved for "+o.id+". Released to Pending.")}
   else toast(o.id+" is now: "+nx);
-  o.status=nx;closeModal();renderPage();
+  if(nx!=="Delivered")audit(o.id,"Order status: "+nx,CUSTNAME(o.cust));o.status=nx;closeModal();renderPage();
 }
 function settleBuffer(o,dmg){
   dmg=dmg||{};let note="";
@@ -886,7 +943,7 @@ function settleBuffer(o,dmg){
   o.rel=note.trim();return note;
 }
 function deliver(o,by,pod,dmg){
-  o.delivered=addDays(0);o.receivedBy=by;o.status="Delivered";o.pod=pod||{by,photo:false,sig:false};const note=settleBuffer(o,dmg);
+  o.delivered=addDays(0);o.receivedBy=by;o.status="Delivered";audit(o.id,"Delivered","Received by "+by+(pod&&pod.photo?", photo taken":"")+(pod&&pod.sig?", signed":""));o.pod=pod||{by,photo:false,sig:false};const note=settleBuffer(o,dmg);
   if(o.free){toast(o.id+" delivered. Replacement for "+o.replaces+", no invoice.")}else if(!invOf(o.id)){const inv=mkInvoice(o,0);toast(o.id+" delivered. "+inv.id+" created, due "+dfmt(inv.due)+" (Net "+inv.terms+")."+note)}
 }
 function rCollections(){
@@ -986,17 +1043,17 @@ function catDel(old){
 }
 const SET={stockRule:"block",cash:2500000,assumeOverdue:true};
 function demoPanel(){
-  return `<div class="panel" style="max-width:640px"><h2>Demo data and options</h2><div class="grid2"><label class="f">Sample data<select id="cfgData"><option value="electronics" ${CFG.data==="electronics"?"selected":""}>Electronics (17 appliance SKUs)</option><option value="food" ${CFG.data==="food"?"selected":""}>Food (100 items with expiry)</option><option value="both" ${CFG.data==="both"?"selected":""}>Both (food and electronics)</option></select></label><label class="f">Warehouses<select id="cfgWh"><option value="1" ${CFG.wh===1?"selected":""}>One warehouse</option><option value="2" ${CFG.wh===2?"selected":""}>Two warehouses with transfers</option></select></label><label class="f">Import costs<select id="cfgImp"><option value="0" ${CFG.imports?"":"selected"}>Off (supplier PO and receiving only)</option><option value="1" ${CFG.imports?"selected":""}>On (freight, duties, brokerage, landed cost)</option></select></label></div><p class="note" style="margin:8px 0 12px">Changing these reloads the demo with fresh sample data. Expiry and batch tracking follow each item category and show only when an item is perishable.</p><button class="btn btn-primary" data-act="cfg-ask">Apply and reload</button></div>`;
+  return `<div class="panel" style="max-width:640px"><h2>Demo data and options</h2><div class="grid2"><label class="f">Warehouses<select id="cfgWh"><option value="1" ${CFG.wh===1?"selected":""}>One warehouse</option><option value="2" ${CFG.wh===2?"selected":""}>Two warehouses with transfers</option></select></label><label class="f">Import costs<select id="cfgImp"><option value="0" ${CFG.imports?"":"selected"}>Off (supplier PO and receiving only)</option><option value="1" ${CFG.imports?"selected":""}>On (freight, duties, brokerage, landed cost)</option></select></label></div><p class="note" style="margin:8px 0 12px">Changing these reloads the demo with fresh sample data. Expiry and batch tracking follow each item category and show only when an item is perishable.</p><button class="btn btn-primary" data-act="cfg-ask">Apply and reload</button></div>`;
 }
 function cfgAsk(){openModal("Reload with new data?",`<p style="margin:0">This replaces the sample data and any changes made in this session, then reloads the demo.</p>`,`<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="cfg-go">Reload demo</button>`)}
-function cfgGo(){const c={data:$("#cfgData").value,wh:+$("#cfgWh").value,imports:+$("#cfgImp").value};try{localStorage.setItem("loftdemo.cfg",JSON.stringify(c))}catch(e){}location.href=location.pathname+"?data="+c.data+"&wh="+c.wh+"&imports="+c.imports}
+function cfgGo(){const c={data:"electronics",wh:+$("#cfgWh").value,imports:+$("#cfgImp").value};try{localStorage.setItem("loftdemo.cfg",JSON.stringify(c))}catch(e){}location.href=location.pathname+"?data="+c.data+"&wh="+c.wh+"&imports="+c.imports}
 function rSettings(){
   return `${can("admin")?demoPanel():""}${can("admin")?`<div class="panel" style="max-width:640px"><h2>Company settings</h2><div class="grid2"><label class="f">Company name<input value="Company A Distribution"></label><label class="f">Admin email<input value="admin@companya.example"></label>
   <label class="f">Default credit terms<select><option>Net 15 days</option><option>Net 30 days</option><option>Net 45 days</option><option>Net 60 days</option></select></label><label class="f">Reminder before due date (days)<input type="number" value="7"></label>
   <label class="f">${MULTI?"Warehouse A name":"Warehouse name"}<input value="${WH.A}"></label>${MULTI?`<label class="f">Warehouse B name<input value="Warehouse B"></label>`:""}</div>
   <label class="check"><input type="checkbox" checked>Send overdue payment reminders to customers</label><label class="check"><input type="checkbox" checked>Alert me when an item reaches its reorder level</label>
   <label class="f" style="margin-top:10px">Sales orders above available stock<select data-chg="stockrule"><option value="block" ${SET.stockRule==="block"?"selected":""}>Block the order</option><option value="allow" ${SET.stockRule==="allow"?"selected":""}>Allow it (picking waits for stock)</option></select></label><div class="grid2"><label class="f">Opening cash balance (PHP)<input type="number" min="0" step="1000" value="${SET.cash}" data-chg="setcash"></label><label class="f">Cash outlook: overdue invoices<select data-chg="setoverdue"><option value="yes" ${SET.assumeOverdue?"selected":""}>Assume they are collected this week</option><option value="no" ${SET.assumeOverdue?"":"selected"}>Leave them out</option></select></label></div><p class="note" style="margin:4px 0 12px">The cash balance is typed in by hand for the demo. Applies when creating a sales order. Available stock means in-date stock in the warehouse the order ships from.</p>
-  <button class="btn btn-primary" data-act="save">Save settings</button></div>`:""}${catPanel()}${uomPanel()}`;
+  <button class="btn btn-primary" data-act="save">Save settings</button></div>`:""}${catPanel()}`;
 }
 function rUsers(){
   const U=[["Admin User","admin@companya.example","Owner"],["Sample User 1","user1@companya.example","Warehouse Manager"],["Sample User 2","user2@companya.example","Inbound/Outbound Clerk"],["Sample User 3","user3@companya.example","Stockman"],["Sample User 4","user4@companya.example","Sales Officer"],["Sample User 5","user5@companya.example","Accounting"],["Driver A","drivera@companya.example","Driver"]];
@@ -1030,7 +1087,7 @@ function trfPanel(){
 }
 function trfNew(){
   openModal("New warehouse transfer",`<label class="f">Item<select id="tfItem" data-chg="uitem" data-id="tfU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Quantity<input id="tfQty" type="number" min="0" step="any" value="20"></label><label class="f">Unit<select id="tfU">${unitOpts(ITEMS[0])}</select></label><label class="f">From<select id="tfFrom"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">To<select id="tfTo"><option value="B">Warehouse B</option><option value="A">Warehouse A</option></select></label></div>`,
+  <div class="grid2"><label class="f">Quantity<input id="tfQty" type="number" min="0" step="any" value="20"></label><label class="f" style="display:none">Unit<select id="tfU">${unitOpts(ITEMS[0])}</select></label><label class="f">From<select id="tfFrom"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">To<select id="tfTo"><option value="B">Warehouse B</option><option value="A">Warehouse A</option></select></label></div>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="trf-create">Create transfer</button>`);
 }
 /* ---------- paging, search, customers ---------- */
@@ -1040,7 +1097,7 @@ const HASSER=ITEMS.some(i=>i.serial);
 function serialRows(){const r=[];ORDERS.filter(o=>o.status==="Delivered"&&o.delivered).forEach(o=>o.lines.forEach(l=>{const it=I(l.sku);if(!it.serial)return;const n=Math.min(Math.round(l.qty),60);for(let k=1;k<=n;k++){const end=new Date(o.delivered);end.setMonth(end.getMonth()+(it.warr||12));r.push({sn:"SN"+it.sku.replace(/\D/g,"")+"-"+o.id.replace(/\D/g,"")+"-"+String(k).padStart(2,"0"),it,o,end})}}));return r.sort((a,b)=>b.o.delivered-a.o.delivered||a.sn.localeCompare(b.sn))}
 function rSerTable(){const q=(FIL.serQ||"").toLowerCase().trim(),A=serialRows(),L=A.filter(x=>!q||(x.sn+" "+x.it.name+" "+CUSTNAME(x.o.cust)+" "+x.o.id).toLowerCase().includes(q));
   return `<div class="tw"><table><thead><tr><th>Serial number</th><th>Item</th><th>Customer</th><th>Order</th><th>Delivered</th><th>Warranty</th><th>Valid until</th><th>Status</th></tr></thead><tbody>${L.slice(0,25).map(x=>{const d=dayDiff(x.end,TODAY);return `<tr><td><b>${x.sn}</b></td><td>${x.it.name}</td><td>${CUSTNAME(x.o.cust)}</td><td>${x.o.id}</td><td>${dfmt(x.o.delivered)}</td><td>${x.it.warr||12} months</td><td>${dfmt(x.end)}</td><td><span class="badge ${d>=0?"b-ok":"b-bad"}">${d>=0?"In warranty, "+d+" days left":"Expired"}</span></td></tr>`}).join("")||`<tr><td colspan="8">No serial numbers match.</td></tr>`}</tbody></table></div><p class="note" style="margin:8px 0 0">Showing ${Math.min(25,L.length)} of ${L.length} serial numbers. Serial numbers are recorded when an order is delivered.</p>`}
-const TBL={inv:()=>rInvTable(),cust:()=>rCustTable(),ser:rSerTable};
+const TBL={inv:()=>rInvTable(),cust:()=>rCustTable(),ser:rSerTable,trail:()=>rTrailTbl()};
 function custRows(){const q=(FIL.custQ||"").toLowerCase(),f=FIL.custType;return Object.entries(CUSTS).filter(([k,c])=>(f==="All"||c.type===f)&&(!q||c.name.toLowerCase().includes(q)||c.type.toLowerCase().includes(q)))}
 function rCustTable(){
   const rows=custRows(),p=FIL.custPage||0;
@@ -1049,17 +1106,17 @@ function rCustTable(){
 const custBlock=()=>`${filt("custType",["All","Retailer","Sub-distributor","Institution"])}<div class="toolbar"><input type="search" data-q="cust" placeholder="Search customers" value="${esc(FIL.custQ||"")}" aria-label="Search customers"><span style="display:flex;gap:8px;flex-wrap:wrap">${can("cust")?`<button class="btn btn-primary btn-sm" data-act="cust-new">${ic("plus",14)}Add customer</button>`:""}<button class="btn btn-ghost btn-sm" data-act="import" data-id="customers">${ic("upload",14)}Import from Excel</button></span></div><div class="panel" id="custTbl">${rCustTable()}</div>`;
 
 /* ---------- inventory: batches, expiry, damage ---------- */
-function invRows(){const f=FIL.inventory,q=(FIL.invQ||"").toLowerCase();return ITEMS.filter(i=>(f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0)||(f==="Expiring Soon"&&(expQty(i,30)>0||expiredQty(i)>0))||(f==="Food"&&i.food)||(f==="Non-Food"&&!i.food))&&(!q||i.name.toLowerCase().includes(q)||i.sku.toLowerCase().includes(q)||i.cat.toLowerCase().includes(q)))}
+function invRows(){const f=FIL.inventory,q=(FIL.invQ||"").toLowerCase();return ITEMS.filter(i=>(f==="All"||(f==="Low Stock"&&stockState(i)[0]!=="OK")||(f==="Has Incoming"&&incoming(i.sku)>0)||(f==="Expiring Soon"&&(expQty(i,30)>0||expiredQty(i)>0))||(f==="Food"&&i.food)||(f==="Non-Food"&&!i.food))&&(!q||i.name.toLowerCase().includes(q)||i.sku.toLowerCase().includes(q)||i.cat.toLowerCase().includes(q)||(i.pn||"").toLowerCase().includes(q)||(i.model||"").toLowerCase().includes(q)))}
 function expCell(i){const d=nextExp(i);if(!d)return `<span class="note">No expiry</span>`;const n=dayDiff(d,TODAY);return `${dfmt(d)}<br><span class="badge ${n<0?"b-bad":n<=30?"b-warn":"b-mute"}">${n<0?"Expired":n<=30?n+" days left":"In date"}</span>`}
 function rInvTable(){
   const rows=invRows(),p=FIL.invPage||0;
-  return `<div class="tw"><table><thead><tr><th>SKU</th><th>Item</th>${MULTI?`<th class="num">Wh A</th><th class="num">Wh B</th>`:""}<th class="num">Total</th><th class="num">Reorder at</th><th class="num">Incoming</th>${HASEXP?`<th>Next expiry</th>`:""}<th>Status</th><th></th></tr></thead><tbody>${rows.slice(p*PG,(p+1)*PG).map(i=>{const st=stockState(i);return `<tr><td>${i.sku}</td><td>${i.name}<br><span class="note">${i.cat}</span></td>${MULTI?`<td class="num">${NUM.format(i.stock.A)}</td><td class="num">${NUM.format(i.stock.B)}</td>`:""}<td class="num"><b>${NUM.format(totalStock(i))}</b></td><td class="num">${i.reorder}</td><td class="num">${incoming(i.sku)||"-"}</td>${HASEXP?`<td>${expCell(i)}</td>`:""}<td><span class="badge ${st[1]}">${st[0]}</span></td><td><button class="btn btn-ghost btn-sm" data-act="item" data-id="${i.sku}">View</button></td></tr>`}).join("")||`<tr><td colspan="${6+(MULTI?2:0)+(HASEXP?1:0)}">Nothing matches this filter.</td></tr>`}</tbody></table></div>${pager("inv",rows.length)}`;
+  return `<div class="tw"><table><thead><tr><th>SKU</th><th>Product no.</th><th>Model no.</th><th>Item</th><th>Serial no.</th>${MULTI?`<th class="num">Wh A</th><th class="num">Wh B</th>`:""}<th class="num">Total</th><th class="num">Reorder at</th><th class="num">Incoming</th>${HASEXP?`<th>Next expiry</th>`:""}<th>Status</th><th></th></tr></thead><tbody>${rows.slice(p*PG,(p+1)*PG).map(i=>{const st=stockState(i);return `<tr><td>${i.sku}</td><td>${i.pn||"-"}</td><td>${i.model||"-"}</td><td>${i.name}<br><span class="note">${i.cat}</span></td><td>${i.serial?"Tracked":"Not tracked"}</td>${MULTI?`<td class="num">${NUM.format(i.stock.A)}</td><td class="num">${NUM.format(i.stock.B)}</td>`:""}<td class="num"><b>${NUM.format(totalStock(i))}</b></td><td class="num">${i.reorder}</td><td class="num">${incoming(i.sku)||"-"}</td>${HASEXP?`<td>${expCell(i)}</td>`:""}<td><span class="badge ${st[1]}">${st[0]}</span></td><td><button class="btn btn-ghost btn-sm" data-act="item" data-id="${i.sku}">View</button></td></tr>`}).join("")||`<tr><td colspan="${9+(MULTI?2:0)+(HASEXP?1:0)}">Nothing matches this filter.</td></tr>`}</tbody></table></div>${pager("inv",rows.length)}`;
 }
 function rInventory(){
   const units=ITEMS.reduce((n,i)=>n+totalStock(i),0), sum=w=>ITEMS.reduce((n,i)=>n+i.stock[w],0);
   return `<div class="kpis">${kpi("layers","Units on hand",NUM.format(units),ITEMS.length+" SKUs"+(MULTI?", both warehouses":""))}${MULTI?kpi("box","Warehouse A",NUM.format(sum("A")),"Main")+kpi("box","Warehouse B",NUM.format(sum("B")),"Secondary"):""}${kpi("alert","Items to reorder",ITEMS.filter(i=>stockState(i)[0]!=="OK").length,"At or below reorder level")}${HASEXP?kpi("alert","Expiring in 30 days",NUM.format(ITEMS.reduce((n,i)=>n+expQty(i,30),0))+" units","Sold first-expiring, first-out")+kpi("alert","Expired on hand",NUM.format(ITEMS.reduce((n,i)=>n+expiredQty(i),0))+" units","Not sold; write off"):""}</div>
   ${filt("inventory",HASEXP?["All","Low Stock","Has Incoming","Expiring Soon","Food","Non-Food"]:["All","Low Stock","Has Incoming"])}
-  <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap">${can("items")?`<button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button>`:""}${can("items")?`<button class="btn btn-primary btn-sm" data-act="item-new">${ic("plus",14)}Add item</button>`:""}</span></div>
+  <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, product no., model no., item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap">${can("items")?`<button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button>`:""}${can("items")?`<button class="btn btn-primary btn-sm" data-act="item-new">${ic("plus",14)}Add item</button>`:""}</span></div>
   <div class="panel" id="invTbl">${rInvTable()}</div>${MULTI?trfPanel():""}${dmgPanel()}`;
 }
 function itemModal(sku){
@@ -1071,35 +1128,35 @@ function itemModal(sku){
   DAMAGES.filter(d=>d.sku===sku).forEach(d=>mv.push({d:d.date,t:"Damage "+d.id+" ("+d.reason+")",w:d.wh,q:-d.qty}));
   mv.sort((a,b)=>b.d-a.d);
   const bt=i.batches.filter(b=>b.q.A+b.q.B>0).sort((a,b)=>expMs(a)-expMs(b));
-  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Category</b>${i.cat}${HASEXP?(i.food?" (perishable)":" (non-perishable)"):""}</div><div><b>Stock unit</b>${i.uom}</div><div><b>Also sold in</b>${i.alts.length?i.alts.map(a=>a.u+" ("+a.per+" per "+uom(i.uom).s+")").join(", "):"None"}</div><div><b>Selling price</b>${money(i.price)} / ${uom(i.uom).s}</div>${can("cost")?`<div><b>Cost</b>${money(i.cost)} / ${uom(i.uom).s}</div>`:""}${MULTI?`<div><b>Warehouse A</b>${fq(i.sku,i.stock.A)}</div><div><b>Warehouse B</b>${fq(i.sku,i.stock.B)}</div>`:`<div><b>On hand</b>${fq(i.sku,i.stock.A)}</div>`}<div><b>Incoming</b>${fq(i.sku,incoming(sku)||0)}</div></div>
+  openModal(i.name,`<div class="kv"><div><b>SKU</b>${i.sku}</div><div><b>Product number</b>${i.pn||"-"}</div><div><b>Model number</b>${i.model||"-"}</div><div><b>Category</b>${i.cat}</div><div><b>Serial number tracking</b>${i.serial?"Yes, scanned on receiving":"No"}</div><div><b>Unit</b>Piece</div>${i.serial?`<div><b>Warranty</b>${i.warr||12} months</div>`:""}<div><b>Selling price</b>${money(i.price)} / ${uom(i.uom).s}</div>${can("cost")?`<div><b>Cost</b>${money(i.cost)} / ${uom(i.uom).s}</div>`:""}${MULTI?`<div><b>Warehouse A</b>${fq(i.sku,i.stock.A)}</div><div><b>Warehouse B</b>${fq(i.sku,i.stock.B)}</div>`:`<div><b>On hand</b>${fq(i.sku,i.stock.A)}</div>`}<div><b>Incoming</b>${fq(i.sku,incoming(sku)||0)}</div></div>
   <h4 style="margin-bottom:8px">${HASEXP?"Batches":"Receipts"}${i.food?" (sold first-expiring, first-out)":""}</h4><div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Lot</th>${HASEXP?`<th>Expiry</th>`:""}<th class="num">${MULTI?"Wh A":"Quantity"}</th>${MULTI?`<th class="num">Wh B</th>`:""}</tr></thead><tbody>${bt.map(b=>{const n=b.exp?dayDiff(b.exp,TODAY):null;return `<tr><td>${b.lot}</td>${HASEXP?`<td>${b.exp?dfmt(b.exp)+' <span class="badge '+(n<0?"b-bad":n<=30?"b-warn":"b-mute")+'">'+(n<0?"Expired":n<=30?n+" days left":"In date")+"</span>":"No expiry"}</td>`:""}<td class="num">${fq(i.sku,b.q.A)}</td>${MULTI?`<td class="num">${fq(i.sku,b.q.B)}</td>`:""}</tr>`}).join("")||`<tr><td colspan="4">No stock on hand.</td></tr>`}</tbody></table></div>
-  <h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Quantity</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":"-"}${fq(i.sku,Math.abs(m.q))}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`,`<button class="btn btn-ghost" data-act="modal-close">Close</button><button class="btn btn-ghost" data-act="item-units" data-id="${i.sku}">Edit units</button>`);
+  ${i.serial&&i.sns&&i.sns.length?`<h4 style="margin-bottom:8px">Serial numbers received (latest 10 of ${i.sns.length})</h4><p class="note" style="margin:0 0 14px">${i.sns.slice(-10).reverse().join(", ")}</p>`:""}<h4 style="margin-bottom:8px">Stock movements</h4><div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Warehouse</th><th class="num">Quantity</th></tr></thead><tbody>${mv.map(m=>`<tr><td>${dfmt(m.d)}</td><td>${m.t}</td><td>${WH[m.w]}</td><td class="num" style="color:var(${m.q<0?"--bad":"--ok"})">${m.q>0?"+":"-"}${fq(i.sku,Math.abs(m.q))}</td></tr>`).join("")||`<tr><td colspan="4">No movements yet.</td></tr>`}</tbody></table></div>`,`<button class="btn btn-ghost" data-act="modal-close">Close</button>`);
 }
 function dmgPanel(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2>${can("writeoff")?`<button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button>`:""}</div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Qty</th><th>Reason</th>${can("cost")?`<th class="num">Cost value</th>`:""}<th></th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${fq(d.sku,d.qty)}</td><td>${d.reason}</td>${can("cost")?`<td class="num">${money(d.qty*I(d.sku).cost)}</td>`:""}<td>${d.rtv?`<span class="badge b-info">${d.rtv}</span>`:can("writeoff")?`<button class="btn btn-ghost btn-sm" data-act="rtv-new" data-id="${d.id}">Return to vendor</button>`:""}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
 }
 function itemNew(){
-  openModal("Add item",`<label class="f">Item name<input id="niName" placeholder="Name and pack size, e.g. 24 pcs/case"></label>
-  <div class="grid2"><label class="f">Category<select id="niCat">${Object.keys(CATS).map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Stock unit<select id="niUom">${UOMS.map(u=>`<option>${u.n}</option>`).join("")}</select></label><label class="f">Reorder level (stock units)<input id="niRe" type="number" min="0" value="20"></label>
-  <label class="f">Also sold in (optional)<select id="niAlt"><option value="">None</option>${UOMS.map(u=>`<option>${u.n}</option>`).join("")}</select></label><label class="f">How many in 1 stock unit<input id="niPer" type="number" min="0" step="any" value="12"></label>
-  <label class="f">Cost per stock unit (PHP)<input id="niCost" type="number" min="0" step="0.01"></label><label class="f">Selling price per stock unit (PHP)<input id="niPrice" type="number" min="0" step="0.01"></label>
-  <label class="f">Opening stock (stock units)<input id="niQty" type="number" min="0" step="any" value="0"></label><label class="f">Warehouse<select id="niWh"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label></div>
-  <p class="note">The SKU is assigned automatically. Perishable categories get an expiry date from their usual shelf life. Categories are managed under Settings.</p>`,
+  openModal("Add item",`<label class="f">Item name<input id="niName" placeholder="e.g. 43-inch Smart LED TV"></label>
+  <div class="grid2"><label class="f">Product number<input id="niPn" placeholder="e.g. PN-40250"></label><label class="f">Model number<input id="niModel" placeholder="e.g. M-TEL-218"></label><label class="f">Category<select id="niCat">${Object.keys(CATS).map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Serial number tracking<select id="niSer"><option value="yes">Yes, record serial numbers</option><option value="no">No</option></select></label><label class="f">Reorder level (pieces)<input id="niRe" type="number" min="0" value="20"></label><label class="f">Warranty (months)<input id="niWar" type="number" min="0" value="12"></label><label class="f">Cost per piece (PHP)<input id="niCost" type="number" min="0" step="0.01"></label><label class="f">Selling price per piece (PHP)<input id="niPrice" type="number" min="0" step="0.01"></label><label class="f">Opening stock (pieces)<input id="niQty" type="number" min="0" step="any" value="0"></label><label class="f">Warehouse<select id="niWh"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label></div>
+  <p class="note">The SKU is assigned automatically. Quantities are in pieces. Categories are managed under Settings.</p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="item-create">Save item</button>`);
 }
 function itemCreate(){
   const name=$("#niName").value.trim(), cat=$("#niCat").value, cost=parseFloat($("#niCost").value)||0, price=parseFloat($("#niPrice").value)||0, q=Math.max(0,parseFloat($("#niQty").value)||0);
   if(!name){toast("Enter the item name.");return}
+  const pn=$("#niPn").value.trim(), model=$("#niModel").value.trim();
+  if(!pn||!model){toast("Enter the product number and the model number.");return}
+  if(ITEMS.some(i=>i.pn&&i.pn.toLowerCase()===pn.toLowerCase())){toast("Product number "+pn+" is already in the item list.");return}
   if(cost<=0||price<=0){toast("Enter the cost and selling price per stock unit.");return}
   if(ITEMS.some(i=>i.name.toLowerCase()===name.toLowerCase())){toast(name+" is already in the item list.");return}
   const sku="SKU-"+(Math.max(...ITEMS.map(i=>parseInt(i.sku.slice(4))))+1), it=mk(sku,name,cat,cost,price,Math.max(0,parseFloat($("#niRe").value)||0),[]);
-  it.uom=$("#niUom").value;it.alts=[];{const al=$("#niAlt").value,per=parseFloat($("#niPer").value)||0;if(al&&al!==it.uom&&per>0)it.alts=[{u:al,per}]}
+  it.uom="Piece";it.alts=[];it.pn=pn;it.model=model;it.serial=$("#niSer").value==="yes";it.warr=Math.max(0,parseInt($("#niWar").value)||0);it.sns=[];
   ITEMS.push(it);if(q>0)addStock(it,$("#niWh").value,q,"OPEN-"+sku.slice(4),it.food?addDays(it.shelf):null);
-  FIL.invQ=name;FIL.inventory="All";FIL.invPage=0;closeModal();toast(sku+" added"+(q?" with "+fq(sku,q)+" in "+WH[$("#niWh").value]:" with no stock yet")+(price<cost?". Note: the selling price is below cost.":"."));renderPage();
+  FIL.invQ=pn;FIL.inventory="All";FIL.invPage=0;closeModal();toast(sku+" added"+(q?" with "+fq(sku,q)+" in "+WH[$("#niWh").value]:" with no stock yet")+(price<cost?". Note: the selling price is below cost.":"."));renderPage();
 }
 function dmgNew(){
   openModal("Report damage or write-off",`<label class="f">Item<select id="dmItem" data-chg="uitem" data-id="dmU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Warehouse<select id="dmWh"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">Quantity<input id="dmQty" type="number" min="0" step="any" value="5"></label></div><label class="f">Unit<select id="dmU">${unitOpts(ITEMS[0])}</select></label>
+  <div class="grid2"><label class="f">Warehouse<select id="dmWh"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">Quantity<input id="dmQty" type="number" min="0" step="any" value="5"></label></div><label class="f" style="display:none">Unit<select id="dmU">${unitOpts(ITEMS[0])}</select></label>
   <label class="f">Reason<select id="dmWhy" data-chg="dmwhy"><option>Broken in transit</option><option>Water damage</option><option>Handling</option><option>Expired</option><option>Other</option></select></label>
   <label class="f" id="dmOtherW" style="display:none">Describe the reason<input id="dmOther" placeholder="What happened?"></label>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="dmg-create">File report</button>`);
@@ -1108,7 +1165,7 @@ function dmgCreate(){
   const i=I($("#dmItem").value),w=$("#dmWh").value,q=qtyOf("dmItem","dmQty","dmU",0.0001);
   let why=$("#dmWhy").value;if(why==="Other"){const x=$("#dmOther").value.trim();if(!x){toast("Describe the reason for the damage.");return}why="Other: "+x}
   if(i.stock[w]<q){toast("Only "+fq(i.sku,i.stock[w])+" of "+i.name+" at "+WH[w]+".");return}
-  const used=takeStock(i,w,q,true);DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:i.sku,wh:w,lot:used.map(u=>u.lot).join(", "),qty:q,reason:why});
+  const used=takeStock(i,w,q,true);DAMAGES.push({id:"DMG-"+(++dmgSeq),date:addDays(0),sku:i.sku,wh:w,lot:used.map(u=>u.lot).join(", "),qty:q,reason:why});audit("DMG-"+dmgSeq,"Damage reported",fq(i.sku,q)+" of "+i.name+", "+why);
   closeModal();toast("DMG-"+dmgSeq+" filed. "+fq(i.sku,q)+" removed from "+WH[w]+" ("+money(q*i.cost)+" at cost).");renderPage();
 }
 function trfCreate(){
@@ -1126,56 +1183,81 @@ function trfRecv(id){
 
 /* ---------- sales orders: delivery by own truck or courier ---------- */
 const nextLabel=(o,nx)=>o.status==="Credit Hold"?"Approve credit override":o.via==="Courier"&&nx==="Out for Delivery"?"Hand over to courier":o.via==="Courier"&&nx==="Delivered"?"Courier confirmed delivery":"Mark as: "+nx;
+let nsN=3,nsRowFn=null;
 function soNew(){
+  const row=k=>`<div class="sorow" style="display:grid;grid-template-columns:1fr 84px 96px;gap:8px;margin-bottom:8px"><select id="nsItem${k}" data-chg="nsrow">${k?`<option value="">(none)</option>`:""}${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select><input id="nsQty${k}" data-chg="nsrow" type="number" min="0" step="1" value="${k?"":"5"}" aria-label="Quantity"><input id="nsBuf${k}" type="number" min="0" step="1" value="0" aria-label="Extra loaded for replacements"></div>`;
+  nsN=3;nsRowFn=row;
   openModal("New sales order",`<label class="f">Customer<select id="nsCust">${Object.entries(CUSTS).map(([k,c])=>`<option value="${k}">${c.name} (${c.type}, Net ${c.terms}, available ${money(c.limit-exposure(+k))})</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Item<select id="nsItem" data-chg="uitem" data-id="nsU">${ITEMS.map(i=>`<option value="${i.sku}">${i.name}</option>`).join("")}</select></label><label class="f">Quantity<input id="nsQty" type="number" min="0" step="any" value="20"></label><label class="f">Unit<select id="nsU">${unitOpts(ITEMS[0])}</select></label>
-  <label class="f">Sales channel<select id="nsCh">${CHANNELS.map(c=>`<option>${c}</option>`).join("")}</select></label>
-  <label class="f">Extra loaded for replacements<input id="nsBuf" type="number" min="0" step="any" value="0"></label><label class="f">Ship from<select id="nsWh" data-chg="nsstock"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} units)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div><p class="note" id="nsStock" style="margin-top:8px"></p>`,
+  <div class="grid2"><label class="f">Sales channel<select id="nsCh">${CHANNELS.map(c=>`<option>${c}</option>`).join("")}</select></label><label class="f">Ship from<select id="nsWh" data-chg="nsstock"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label><label class="f">Delivery by<select id="nsVia">${VEHICLES.filter(v=>!v.maint).map(v=>`<option value="V:${v.id}">${v.plate}, ${v.type} (${v.driver}, up to ${v.cap} pieces)</option>`).join("")}<option value="Courier">Third-party courier</option></select></label></div>
+  <div style="display:grid;grid-template-columns:1fr 84px 96px;gap:8px;font-size:12px;color:var(--muted);margin:8px 0 4px"><span>Item</span><span>Qty (pieces)</span><span>Extra for replacements</span></div><div id="soRows">${row(0)}${row(1)}${row(2)}</div><button class="btn btn-ghost btn-sm" type="button" data-act="so-addrow">${ic("plus",14)}Add item</button><p class="note" id="nsStock" style="margin-top:10px"></p>`,
   `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="so-create">Create order</button>`);
   nsStockUpd();
 }
-function nsStockUpd(){const e=$("#nsStock");if(!e)return;const i=I($("#nsItem").value),w=$("#nsWh").value,o=w==="A"?"B":"A";
-  e.innerHTML=`<b>${WH[w]}:</b> ${fq(i.sku,sellable(i,w))} available to sell${i.stock[w]>sellable(i,w)?` (${fq(i.sku,i.stock[w])} on hand, the rest is expired)`:""}. ${WH[o]}: ${fq(i.sku,sellable(i,o))}.`}
+function nsStockUpd(){const e=$("#nsStock");if(!e)return;const w=$("#nsWh").value,o=w==="A"?"B":"A",h=[];
+  for(let k=0;k<nsN;k++){const i=I($("#nsItem"+k).value);if(!i)continue;h.push(`<b>${i.name}:</b> ${fq(i.sku,sellable(i,w))} available at ${WH[w]}${MULTI?", "+fq(i.sku,sellable(i,o))+" at "+WH[o]:""}`)}
+  e.innerHTML=h.join("<br>")||"Choose at least one item."}
 function soCreate(){
-  const q=qtyOf("nsItem","nsQty","nsU",0.0001), bf=qtyOf("nsItem","nsBuf","nsU",0), sku=$("#nsItem").value, cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel);
-  if(veh&&q+bf>veh.cap){toast(NUM.format(Math.round((q+bf)*100)/100)+" units is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
-  const av=sellable(I(sku),$("#nsWh").value), need=q+bf, wn=WH[$("#nsWh").value], oth=$("#nsWh").value==="A"?"B":"A";
-  if(need>av+1e-9&&SET.stockRule==="block"){toast("Only "+fq(sku,av)+" available at "+wn+" and the order needs "+fq(sku,need)+"."+(sellable(I(sku),oth)>=need?" "+WH[oth]+" has enough.":""));return}
-  const short=need>av+1e-9;
-  const over=exposure(cu)+q*I(sku).price>CUSTS[cu].limit;
-  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines:[{sku,qty:q,buf:bf}],ch:$("#nsCh").value,status:over?"Credit Hold":"Pending",wh:$("#nsWh").value,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
-  ORDERS.push(o);closeModal();
-  toast((over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+".")+(short?" Stock is short at "+wn+", so picking will wait.":""));renderPage();
+  const map={};for(let k=0;k<nsN;k++){const sku=$("#nsItem"+k).value,q=Math.max(0,parseFloat($("#nsQty"+k).value)||0),bf=Math.max(0,parseFloat($("#nsBuf"+k).value)||0);if(!sku||q<=0)continue;const m=map[sku]||(map[sku]={sku,qty:0,buf:0});m.qty+=q;m.buf+=bf}
+  const lines=Object.values(map);if(!lines.length){toast("Add at least one item with a quantity.");return}
+  const cu=+$("#nsCust").value, vsel=$("#nsVia").value, via=vsel==="Courier"?"Courier":"Truck", veh=VEHICLES.find(v=>"V:"+v.id===vsel), w=$("#nsWh").value, wn=WH[w], oth=w==="A"?"B":"A";
+  const load=lines.reduce((n,l)=>n+l.qty+l.buf,0);
+  if(veh&&load>veh.cap){toast(NUM.format(load)+" pieces is more than "+veh.plate+" can carry ("+veh.cap+"). Choose a larger vehicle or split the order.");return}
+  let short=false;
+  for(const l of lines){const av=sellable(I(l.sku),w),need=l.qty+l.buf;
+    if(need>av+1e-9){if(SET.stockRule==="block"){toast("Only "+fq(l.sku,av)+" of "+I(l.sku).name+" available at "+wn+" and the order needs "+fq(l.sku,need)+"."+(sellable(I(l.sku),oth)>=need?" "+WH[oth]+" has enough.":""));return}short=true}}
+  const over=exposure(cu)+lines.reduce((n,l)=>n+l.qty*I(l.sku).price,0)>CUSTS[cu].limit;
+  const o={id:"SO-"+(++soSeq),cust:cu,date:addDays(0),lines,ch:$("#nsCh").value,status:over?"Credit Hold":"Pending",wh:w,driver:via==="Courier"?"Courier X":veh.driver,via,track:via==="Courier"?"TRK-"+(9000+soSeq):"",delivered:null,receivedBy:"",pod:null};
+  ORDERS.push(o);audit(o.id,"Sales order created",CUSTNAME(cu)+", "+lines.length+(lines.length===1?" item":" items")+", "+money(lines.reduce((n,l)=>n+l.qty*I(l.sku).price,0)));closeModal();
+  toast((over?o.id+" is over "+CUSTNAME(cu)+"'s credit limit and was placed on credit hold.":o.id+" created for "+CUSTNAME(cu)+" with "+lines.length+(lines.length===1?" item.":" items."))+(short?" Stock is short at "+wn+", so picking will wait.":""));renderPage();
 }
 
 /* ---------- customer returns and credit notes ---------- */
-function makeReturn(o,sku,qty,reason,disp,date,res){
-  const l=o.lines.find(x=>x.sku===sku), it=I(sku), val=qty*it.price, inv=invOf(o.id), id="RET-"+(++retSeq), rp=res==="Replace", cn=rp?"":"CN-"+(++cnSeq);
-  if(inv&&!rp){inv.amount=Math.max(inv.paid,inv.amount-val);inv.credits=(inv.credits||0)+val}
-  if(disp==="Back to stock"){const ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];addStock(it,o.wh,qty,"RET-"+id.slice(4),it.food?(ok?ok.exp:addDays(60)):null)}
-  else DAMAGES.push({id:"DMG-"+(++dmgSeq),date:date||addDays(0),sku,wh:o.wh,lot:"Return "+id,qty,reason:"Customer return: "+reason});
-  const r={id,cn,so:o.id,cust:o.cust,date:date||addDays(0),sku,qty,reason,disp,value:rp?0:val,res:rp?"Replacement":"Credit note"};
-  if(rp){const n={id:"SO-"+(++soSeq),cust:o.cust,date:date||addDays(0),lines:[{sku,qty}],status:"Pending",wh:o.wh,driver:o.via==="Courier"?"Courier X":o.driver,via:o.via,track:o.via==="Courier"?"TRK-"+(9000+soSeq):"",free:true,replaces:o.id,delivered:null,receivedBy:"",pod:null};ORDERS.push(n);r.rep=n.id}
-  RETURNS.push(r);return r;
+function makeReturn(o,sku,qty,reason,disp,date,res,pend){
+  const it=I(sku), id="RET-"+(++retSeq), rp=res==="Replace";
+  const r={id,cn:"",so:o.id,cust:o.cust,date:date||addDays(0),sku,qty,reason,disp:pend?"Awaiting inspection":disp,value:0,res:rp?"Replacement":"Credit note",status:pend?"For inspection":"Accepted"};
+  RETURNS.push(r);if(!pend)acceptReturn(r,disp);return r;
 }
-const returnedQty=(o,sku)=>RETURNS.filter(r=>r.so===o.id&&r.sku===sku).reduce((n,r)=>n+r.qty,0);
+function acceptReturn(r,disp){
+  const o=ORDERS.find(x=>x.id===r.so), it=I(r.sku), sku=r.sku, qty=r.qty, val=qty*it.price, inv=invOf(o.id), rp=r.res==="Replacement";
+  r.cn=rp?"":"CN-"+(++cnSeq);
+  if(inv&&!rp){inv.amount=Math.max(inv.paid,inv.amount-val);inv.credits=(inv.credits||0)+val}
+  if(disp==="Back to stock"){const ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];addStock(it,o.wh,qty,"RET-"+r.id.slice(4),it.food?(ok?ok.exp:addDays(60)):null)}
+  else DAMAGES.push({id:"DMG-"+(++dmgSeq),date:r.date,sku,wh:o.wh,lot:"Return "+r.id,qty,reason:"Customer return: "+r.reason});
+  r.disp=disp;r.value=rp?0:val;r.status="Accepted";
+  if(rp){const n={id:"SO-"+(++soSeq),cust:o.cust,date:r.date,lines:[{sku,qty}],status:"Pending",wh:o.wh,driver:o.via==="Courier"?"Courier X":o.driver,via:o.via,track:o.via==="Courier"?"TRK-"+(9000+soSeq):"",free:true,replaces:o.id,delivered:null,receivedBy:"",pod:null};ORDERS.push(n);r.rep=n.id}
+}
+const rstat=r=>r.status||"Accepted";
+function retInspect(id){
+  const r=RETURNS.find(x=>x.id===id),it=I(r.sku);
+  openModal("Inspect return "+r.id,`<p class="note" style="margin:0 0 10px">${r.qty} × ${it.name} from ${r.so} (${CUSTNAME(r.cust)}). Reason given: ${esc(r.reason)}. Check the items at the warehouse before accepting. Stock and the ${r.res==="Replacement"?"replacement order":"credit note"} are updated only after you accept.</p>
+  <div class="grid2"><label class="f">Condition<select id="inCond"><option value="Back to stock">Good, can be sold again</option><option value="Write off as damage">Damaged, write off</option><option value="Reject">Not accepted</option></select></label>${it.serial?`<label class="f">Serial numbers match the delivered units<select id="inSer"><option value="yes">Yes</option><option value="no">No</option></select></label>`:""}</div>
+  <label class="f">Inspection notes<input id="inNote" placeholder="e.g. box opened, no scratches"></label>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ret-decide" data-id="${r.id}">Save inspection</button>`);
+}
+function retDecide(id){
+  const r=RETURNS.find(x=>x.id===id),cond=$("#inCond").value,note=$("#inNote").value.trim(),ser=$("#inSer")?$("#inSer").value:"yes";
+  if(ser==="no"&&cond!=="Reject"){toast("The serial numbers don't match the delivered units. Choose Not accepted.");return}
+  if(cond==="Reject"){r.status="Rejected";r.disp="Rejected";r.res="None";r.value=0;audit(r.id,"Return not accepted",note||"Failed inspection");toast(r.id+" not accepted. No credit note and no stock change.")}
+  else{acceptReturn(r,cond);audit(r.id,"Return inspected and accepted",(cond==="Back to stock"?"Put back in stock":"Written off as damage")+(r.rep?". Replacement "+r.rep:". Credit note "+r.cn)+(note?". "+note:""));toast(r.id+" accepted. "+(cond==="Back to stock"?"Stock updated. ":"Written off. ")+(r.rep?"Replacement order "+r.rep+" created.":"Credit note "+r.cn+" for "+money(r.value)+" applied."))}
+  closeModal();renderPage();
+}
+const returnedQty=(o,sku)=>RETURNS.filter(r=>r.so===o.id&&r.sku===sku&&r.status!=="Rejected").reduce((n,r)=>n+r.qty,0);
 function retNew(id){
   const o=ORDERS.find(x=>x.id===id);
-  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. The customer gets a credit note against the invoice or a free replacement order. Damaged stock comes back to the warehouse and are written off, or go back to stock if they are fine.</p>
+  openModal("Process return: "+o.id,`<p class="note" style="margin-bottom:10px">${CUSTNAME(o.cust)}. The returned items must be inspected at the warehouse before the return is accepted. The credit note or replacement, and the stock update, happen only after inspection.</p>
   <label class="f">Item<select id="rtItem">${o.lines.map(l=>`<option value="${l.sku}">${I(l.sku).name} (delivered ${l.qty}, returned ${returnedQty(o,l.sku)})</option>`).join("")}</select></label>
-  <div class="grid2"><label class="f">Quantity returned<input id="rtQty" type="number" min="1" value="1"></label><label class="f">Reason<select id="rtWhy"><option>Damaged on delivery</option><option>Expired or near expiry</option><option>Wrong item</option><option>Over-delivered</option><option>Customer changed order</option></select></label></div>
-  <label class="f">Resolution for the customer<select id="rtRes"><option value="Credit">Credit note</option><option value="Replace">Replace the items (no charge)</option></select></label>
-  <label class="f">Returned stock at the warehouse<select id="rtDisp"><option>Write off as damage</option><option>Back to stock</option></select></label>`,
-  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ret-create" data-id="${o.id}">Create credit note</button>`);
+  <div class="grid2"><label class="f">Quantity returned<input id="rtQty" type="number" min="1" value="1"></label><label class="f">Reason<select id="rtWhy"><option>Damaged on delivery</option><option>Defective or not working</option><option>Wrong item</option><option>Over-delivered</option><option>Customer changed order</option></select></label></div>
+  <label class="f">Resolution for the customer<select id="rtRes"><option value="Credit">Credit note</option><option value="Replace">Replace the items (no charge)</option></select></label>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="ret-create" data-id="${o.id}">Log return for inspection</button>`);
 }
 function retCreate(id){
   const o=ORDERS.find(x=>x.id===id), sku=$("#rtItem").value, l=o.lines.find(x=>x.sku===sku), q=Math.max(1,parseInt($("#rtQty").value)||1), left=l.qty-returnedQty(o,sku);
   if(q>left){toast("Only "+fq(sku,left)+" of "+I(sku).name+" can still be returned on "+o.id+".");return}
-  const r=makeReturn(o,sku,q,$("#rtWhy").value,$("#rtDisp").value,null,$("#rtRes").value);closeModal();
-  toast(r.rep?r.id+" saved. Replacement order "+r.rep+" for "+fq(sku,q)+" created at no charge.":r.id+" saved. Credit note "+r.cn+" for "+money(r.value)+" applied to the invoice.");renderPage();
+  const r=makeReturn(o,sku,q,$("#rtWhy").value,"",null,$("#rtRes").value,true);audit(r.id,"Return logged","From "+o.id+", "+q+" pcs of "+I(sku).name+", "+r.reason+". Awaiting inspection");closeModal();
+  toast(r.id+" logged for inspection. No stock change and no "+(r.res==="Replacement"?"replacement":"credit note")+" until the items are checked.");renderPage();
 }
 function retPanel(){
-  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Qty</th><th>Reason</th><th>Returned stock</th><th>Resolution</th><th class="num">Credit</th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${fq(r.sku,r.qty)}</td><td>${r.reason}</td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${r.rep?"Replacement "+r.rep:"Credit note "+r.cn}</td><td class="num">${r.rep?"-":money(r.value)}</td></tr>`).join("")||`<tr><td colspan="10">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return.</p></div>`;
+  return `<div class="panel"><h2>Customer returns and credit notes</h2><div class="tw"><table><thead><tr><th>Return</th><th>Date</th><th>Order</th><th>Customer</th><th>Item</th><th class="num">Qty</th><th>Reason</th><th>Status</th><th>Returned stock</th><th>Resolution</th><th class="num">Credit</th><th></th></tr></thead><tbody>${RETURNS.slice().reverse().map(r=>`<tr><td><b>${r.id}</b></td><td>${dfmt(r.date)}</td><td>${r.so}</td><td>${CUSTNAME(r.cust)}</td><td>${I(r.sku).name}</td><td class="num">${fq(r.sku,r.qty)}</td><td>${r.reason}</td><td><span class="badge ${rstat(r)==="Rejected"?"b-bad":rstat(r)==="For inspection"?"b-warn":"b-ok"}">${rstat(r)}</span></td><td><span class="badge ${r.disp==="Back to stock"?"b-ok":"b-warn"}">${r.disp}</span></td><td>${rstat(r)==="For inspection"?"After inspection":rstat(r)==="Rejected"?"None":r.rep?"Replacement "+r.rep:"Credit note "+r.cn}</td><td class="num">${r.rep||rstat(r)!=="Accepted"?"-":money(r.value)}</td><td>${rstat(r)==="For inspection"&&can("writeoff")?`<button class="btn btn-ghost btn-sm" data-act="ret-inspect" data-id="${r.id}">Inspect</button>`:""}</td></tr>`).join("")||`<tr><td colspan="12">No returns yet.</td></tr>`}</tbody></table></div><p class="note" style="margin-top:8px">Start a return from a delivered order: Sales &amp; Deliveries, open the order, then Process return. Every return is inspected before stock or credit is updated.</p></div>`;
 }
 function tbRecv(id){
   const t=TRUCKBACK.find(x=>x.id===id),it=I(t.sku),ok=it.batches.filter(b=>b.exp&&!expired(b)).sort((a,b)=>a.exp-b.exp)[0];
@@ -1342,25 +1424,26 @@ function poModal(id){
   else if(st==="Confirmed")act=`<button class="btn btn-accent" data-act="po-dispatch" data-id="${p.id}">Mark as dispatched</button>`;
   else if(st==="In transit")act=`<button class="btn btn-accent" data-act="ship" data-id="${sh.id}">Track ${sh.id}</button>`;
   if(!can("po")&&st!=="In transit")act=`<span class="note">Purchase order actions need Owner or Warehouse Manager.</span>`;
-  openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Down payment</b>${st==="Draft"||st==="Sent"?`<select data-chg="podp" data-id="${p.id}">${DPOPTS.map(t=>`<option value="${t}" ${t===p.dp?"selected":""}>${dpLabel(t)}</option>`).join("")}</select>`:dpLabel(p.dp)}</div><div><b>Payment terms${p.dp?" on balance":""}</b>${st==="Draft"||st==="Sent"?`<select data-chg="poterms" data-id="${p.id}">${TERMOPTS.map(t=>`<option value="${t}" ${t===p.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select>`:termLabel(p.terms)}</div>${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
+  openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Down payment</b>${st==="Draft"||st==="Sent"?`<select data-chg="podp" data-id="${p.id}">${DPOPTS.map(t=>`<option value="${t}" ${t===p.dp?"selected":""}>${dpLabel(t)}</option>`).join("")}</select>`:dpLabel(p.dp)}</div><div><b>Payment terms</b>${termLabelP(p)}</div>${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
    <ul class="tl">${flow.map((x,j)=>`<li class="${j<k?"done":j===k?"cur":""}"><span class="c">${j<k||(j===k&&x==="Received")?ic("check",12):""}</span>${x}</li>`).join("")}</ul>
    <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${fq(l.sku,l.qty)}</td><td class="num">${money(l.cost)}</td><td class="num">${money(l.qty*l.cost)}</td></tr>`).join("")}</tbody></table></div>
-   <div class="sum">${p.dp?`<div><span>Down payment (${p.dp}%)</span><span>${money(dpAmt(p))}</span></div><div><span>${p.dp===100?"Balance":"Balance, "+termLabel(p.terms)}</span><span>${money(balAmt(p))}</span></div>`:""}<div class="tot"><span>PO total</span><span>${money(tot)}</span></div></div>${intl?`<p class="note">${usdNote(p.sup,tot)}. Freight, duties and port fees are billed separately by the forwarder and broker.</p>`:""}
-   ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}`,
+   <div class="sum">${p.dp?`<div><span>Down payment (${p.dp}%)</span><span>${money(dpAmt(p))}</span></div><div><span>${p.dp===100?"Balance":"Balance (full payment upon loading, "+(100-p.dp)+"%)"}</span><span>${money(balAmt(p))}</span></div>`:""}<div class="tot"><span>PO total</span><span>${money(tot)}</span></div></div>${intl?`<p class="note">${usdNote(p.sup,tot)}. Freight, duties and port fees are billed separately by the forwarder and broker.</p>`:""}
+   ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}${trailBlock(p.id)}`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
 }
 function poDispatch(id,veh,sea){
   const p=POS.find(x=>x.id===id), n=++shpSeq, d=addDays(0);
   const sh=sea?{id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:sea.dest,eta:sea.eta,stage:0,wh:p.wh,costs:{freight:sea.cost,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,sea:{line:sea.line,bl:sea.bl,origin:sea.origin},veh1:veh}
    :{id:"SHP-"+n,container:"",bl:"",supplier:p.sup,port:"Direct delivery",eta:p.expected<d?d:p.expected,stage:3,wh:p.wh,costs:{freight:0,duties:0,brokerage:0,port:0},lines:p.lines.map(l=>({sku:l.sku,qty:l.qty})),local:true,veh};
-  sh.pay={due:addDays(p.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;
+  sh.pay={due:addDays(Math.max(0,p.terms)),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;p.expected=sh.eta;audit(p.id,"Dispatched by supplier",sh.id+" created");
+  if(p.terms===-1&&balAmt(p)>0&&!BILLS.some(b=>b.po===p.id&&(b.type==="Balance"||b.type==="Goods")))mkBill({sup:p.sup,po:p.id,type:p.dp?"Balance":"Goods",date:addDays(0),due:addDays(0),amt:balAmt(p)});
   if(sea&&sea.cost>0)mkBill({sup:"Shipping line and trucker",po:p.id,type:"Freight, duties and fees",date:d,due:dPlus(sh.eta,7),amt:sea.cost});
   closeModal();toast(p.id+" dispatched by "+p.sup+". "+sh.id+(sea?" is on its way to the origin port, then by sea to "+WH[p.wh]+".":" is on its way to "+WH[p.wh]+"."));renderPage();
 }
 function poNext(id){
   const p=POS.find(x=>x.id===id);
-  if(p.status==="Draft"){p.status="Sent";toast(p.id+" sent to "+p.sup+".")}
-  else if(p.status==="Sent"){p.status="Confirmed";const d=p.dp?mkBill({sup:p.sup,po:p.id,type:"Down payment ("+p.dp+"%)",date:addDays(0),due:addDays(2),amt:dpAmt(p)}):null;toast(p.id+" confirmed by "+p.sup+"."+(d?" "+d.id+" for the "+money(d.amt)+" down payment is due in 2 days.":""))}
+  if(p.status==="Draft"){p.status="Sent";audit(p.id,"Purchase order sent","To "+p.sup);toast(p.id+" sent to "+p.sup+".")}
+  else if(p.status==="Sent"){p.status="Confirmed";audit(p.id,"Purchase order confirmed","By "+p.sup);const d=p.dp?mkBill({sup:p.sup,po:p.id,type:"Down payment ("+p.dp+"%)",date:addDays(0),due:addDays(2),amt:dpAmt(p)}):null;toast(p.id+" confirmed by "+p.sup+"."+(d?" "+d.id+" for the "+money(d.amt)+" down payment is due in 2 days.":""))}
   closeModal();renderPage();
 }
 const ymd=d=>d.toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
@@ -1383,8 +1466,8 @@ function shipSave(poId,shId){
   if(sh)Object.assign(sh,{container:cnt,bl:$("#shBl").value.trim(),port:$("#shPort").value,eta,costs});
   else{
     sh={id:"SHP-"+(++shpSeq),container:cnt,bl:$("#shBl").value.trim(),supplier:p.sup,port:$("#shPort").value,eta,stage:0,wh:p.wh,costs,lines:p.lines.map(l=>({sku:l.sku,qty:l.qty}))};
-    sh.pay={due:addDays(p.terms),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;
-    if(balAmt(p)>0)mkBill({sup:p.sup,po:p.id,type:p.dp?"Balance":"Goods",date:addDays(0),due:addDays(p.terms),amt:balAmt(p)});
+    sh.pay={due:addDays(Math.max(0,p.terms)),paid:false};SHIPMENTS.unshift(sh);p.shp=sh.id;audit(sh.id,"Inbound shipment created","For "+p.id);
+    if(balAmt(p)>0)mkBill({sup:p.sup,po:p.id,type:p.dp?"Balance":"Goods",date:addDays(0),due:addDays(Math.max(0,p.terms)),amt:balAmt(p)});
   }
   p.expected=eta;
   const fb=BILLS.find(b=>b.po===p.id&&b.type==="Freight, duties and fees");
@@ -1417,14 +1500,14 @@ function poNew(supName){
   let sug=ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
   const sugd=sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
   const row=k=>{const it=sug[k],q=it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):"";
-    return `<div class="porow" style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" data-chg="pogap" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" data-chg="pogap" aria-label="Unit">${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" data-chg="pogap" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
+    return `<div class="porow" style="display:grid;grid-template-columns:1fr 84px 110px;gap:8px;margin-bottom:8px"><select id="poItem${k}" data-chg="poitem" data-id="${k}"><option value="">${k?"(none)":"Choose item"}</option>${ITEMS.map(i=>`<option value="${i.sku}" ${it&&it.sku===i.sku?"selected":""}>${i.name}</option>`).join("")}</select><input id="poQty${k}" data-chg="pogap" type="number" min="0" step="any" value="${q}" aria-label="Quantity"><select id="poU${k}" data-chg="pogap" aria-label="Unit" hidden>${unitOpts(it||ITEMS[0])}</select><input id="poCost${k}" data-chg="pogap" type="number" min="0" value="${it?it.cost:""}" aria-label="Unit cost"></div>`};
   poN=3;poRowFn=row;
   openModal("New purchase order",`<div class="grid2"><label class="f">Supplier<select id="poSup" data-chg="posup">${["International","Local"].map(g=>`<optgroup label="${g}">${SUPPS.filter(x=>x.kind===g).map(x=>`<option ${x.name===sn?"selected":""}>${x.name} (${x.country})</option>`.replace("<option ",`<option value="${x.name}" `)).join("")}</optgroup>`).join("")}</select></label>
    <label class="f">Deliver to<select id="poWh"><option value="A">${WH.A}</option>${MULTI?`<option value="B">Warehouse B</option>`:""}</select></label>
    <label class="f">Down payment<select id="poDp" data-chg="pogap">${DPOPTS.map(t=>`<option value="${t}">${dpLabel(t)}</option>`).join("")}</select></label>
-   <label class="f">Payment terms${""}<select id="poTerms" data-chg="pogap">${TERMOPTS.map(t=>`<option value="${t}" ${t===sp.terms?"selected":""}>${termLabel(t)}</option>`).join("")}</select></label></div>
-   <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual terms ${termLabel(sp.terms)}, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
-   <div style="display:grid;grid-template-columns:1fr 84px 96px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty</span><span>Unit</span><span>Cost / stock unit</span></div><div id="poRows">${row(0)}${row(1)}${row(2)}</div><button class="btn btn-ghost btn-sm" type="button" data-act="po-addrow">${ic("plus",14)}Add item</button><div id="poGap" class="note" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px"></div>`,
+   <label class="f">Payment terms<select id="poTerms" data-chg="pogap" disabled>${termOptsHtml(0)}</select></label></div>
+   <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
+   <div style="display:grid;grid-template-columns:1fr 84px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item</span><span>Qty (pieces)</span><span>Cost / piece</span></div><div id="poRows">${row(0)}${row(1)}${row(2)}</div><button class="btn btn-ghost btn-sm" type="button" data-act="po-addrow">${ic("plus",14)}Add item</button><div id="poGap" class="note" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px"></div>`,
    `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">Save as draft</button>`);
   poGapUpd();
 }
@@ -1432,7 +1515,7 @@ function poCreate(){
   const sn=$("#poSup").value, lines=Array.from({length:poN},(_,k)=>k).map(k=>({sku:$("#poItem"+k).value,qty:$("#poItem"+k).value?toStock(I($("#poItem"+k).value),$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0):0,cost:parseFloat($("#poCost"+k).value)||0})).filter(l=>l.sku&&l.qty>0);
   if(!lines.length){toast("Add at least one item with a quantity.");return}
   lines.forEach(l=>{if(!l.cost)l.cost=I(l.sku).cost});
-  const p={id:"PO-"+(++poSeq),sup:sn,terms:+$("#poTerms").value,dp:+$("#poDp").value,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines};POS.push(p);
+  const p={id:"PO-"+(++poSeq),sup:sn,terms:+$("#poTerms").value,dp:+$("#poDp").value,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines};POS.push(p);audit(p.id,"Purchase order created",sn+", "+money(poTotal(p)));
   FIL.po="All";closeModal();toast(p.id+" saved as a draft for "+sn+": "+money(poTotal(p))+".");renderPage();
 }
 function supTab(){
@@ -1545,7 +1628,7 @@ function csvExport(){
 
 /* ---------- Excel import (sample preview only) ---------- */
 function importModal(kind){
-  const C={items:{t:"Import items from Excel",f:"stock-list.xlsx",n:100,cols:[["Item Code","SKU"],["Description","Item name"],["Category","Category"],["Cost","Unit cost"],["Price","Selling price"],["Qty WH-A","Warehouse A stock"],["Qty WH-B","Warehouse B stock"],["Exp Date","Expiry date"]],rows:[["1101","Beverages Item 01 (24 pcs/case)","Beverages","340","480","520","210","30 Jun 2027"],["1102","Canned Goods Item 02 (12 pcs/case)","Canned Goods","700","960","180","90","15 Mar 2028"],["1103","Household Item 03 (6 pcs/case)","Household","1080","1450","25","18","-"],["1104","Snacks Item 04 (48 pcs/case)","Snacks","260","380","800","500","12 Jan 2027"]]},
+  const C={items:{t:"Import items from Excel",f:"stock-list.xlsx",n:100,cols:[["Item Code","SKU"],["Product No.","Product number"],["Model No.","Model number"],["Description","Item name"],["Category","Category"],["Cost","Cost per piece"],["Price","Selling price"],["Qty WH-A","Warehouse A stock"],["Serial","Serial tracked (Y/N)"]],rows:[["1101","PN-50101","M-TEL-310","43-inch Smart LED TV","Televisions","11500","14900","24","Y"],["1102","PN-50102","M-ACO-411","Inverter Aircon 1.0 HP","Air Conditioners","18500","23900","6","Y"],["1103","PN-50103","M-SPA-512","Aircon Compressor 1.0 HP","Spare Parts","4200","5890","10","N"],["1104","PN-50104","M-LIG-613","LED Bulb 9 W","Lighting","55","95","600","N"]]},
    customers:{t:"Import customers from Excel",f:"customer-list.xlsx",n:60,cols:[["Customer","Customer name"],["Type","Customer type"],["Terms","Payment terms (days)"],["Credit Limit","Credit limit"],["Email","Contact email"]],rows:[["Customer 061","Retailer","30","100000","accounts@customer.example"],["Customer 062","Sub-distributor","60","250000","accounts@customer.example"],["Customer 063","Institution","45","150000","accounts@customer.example"]]}}[kind];
   openModal(C.t,`<p class="note" style="margin-bottom:10px">Bring your existing Excel file. Columns are matched to system fields, you review a preview, then import. This demo uses a sample file and reads nothing from your computer.</p>
   <label class="f">Excel or CSV file<input type="file" id="impFile" accept=".xlsx,.xls,.csv" data-chg="impfile"></label><p class="note" id="impName" style="margin:-6px 0 12px">Sample file: ${C.f} (${C.n} rows)</p>
@@ -1664,7 +1747,7 @@ document.addEventListener("click",e=>{
   else if(a==="remind")remind(id);
   else if(a==="lead")leadModal(id);else if(a==="lead-new")leadNew();else if(a==="lead-create")leadCreate();else if(a==="lead-save")leadSave(id);else if(a==="lead-conv")leadConv(id);
   else if(a==="pdc")pdcMove(id,+t.dataset.k,t.dataset.to);
-  else if(a==="trf-new")trfNew();else if(a==="trf-create")trfCreate();else if(a==="trf-recv")trfRecv(id);
+  else if(a==="rc-sim")recvSim();else if(a==="rc-all")recvAll();else if(a==="rc-confirm")recvConfirm(id);else if(a==="so-addrow"){$("#soRows").insertAdjacentHTML("beforeend",nsRowFn(nsN++));const r=$("#soRows").lastElementChild;r.scrollIntoView({block:"nearest"});r.querySelector("select").focus()}else if(a==="trf-new")trfNew();else if(a==="trf-create")trfCreate();else if(a==="trf-recv")trfRecv(id);
   else if(a==="sheet-close")sheetClose();
   else if(a==="confirm")confirmDelivery(id);
   else if(a==="pg"){const k=t.dataset.k;FIL[k+"Page"]=Math.max(0,(FIL[k+"Page"]||0)+(+id));const c=$("#"+k+"Tbl");c.innerHTML=TBL[k]();paintIcons(c)}
@@ -1673,7 +1756,7 @@ document.addEventListener("click",e=>{
   else if(a==="uom-new")uomForm("");else if(a==="uom-edit")uomForm(id);else if(a==="uom-save")uomSave(id);else if(a==="uom-del")uomDel(id);else if(a==="item-units")itemUnits(id);else if(a==="item-units-save")itemUnitsSave(id);else if(a==="cat-new")catForm("");else if(a==="cat-edit")catForm(id);else if(a==="cat-save")catSave(id);else if(a==="cat-del")catDel(id);else if(a==="item-new")itemNew();else if(a==="item-create")itemCreate();else if(a==="dmg-new")dmgNew();else if(a==="dmg-create")dmgCreate();
   else if(a==="csv")csvExport();
   else if(a==="rtv-new")rtvNew(id);else if(a==="rtv-create")rtvCreate(id);else if(a==="rtv-done")rtvDone(id);else if(a==="tb-recv")tbRecv(id);
-  else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);
+  else if(a==="ret-new")retNew(id);else if(a==="ret-create")retCreate(id);else if(a==="ret-inspect")retInspect(id);else if(a==="ret-decide")retDecide(id);
   else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-addrow"){$("#poRows").insertAdjacentHTML("beforeend",poRowFn(poN++));const r=$("#poRows").lastElementChild;r.scrollIntoView({block:"nearest"});r.querySelector("select").focus()}else if(a==="po-next")poNext(id);else if(a==="po-book")shipForm(id,"");else if(a==="po-dispatch")trkForm("po",id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);else if(a==="bill-req"){const b=BILLS.find(x=>x.id===id);b.req={by:ROLE,date:addDays(0)};closeModal();toast("Payment requested for "+b.id+". Accounting will see it on the bill.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
@@ -1688,10 +1771,12 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="cntype"){$("#ncLimit").value=TYPE_LIMIT[t.value]}
   else if(c==="vhsel"){$("#vhHired").style.display=t.value==="hired"?"block":"none"}
   else if(c==="poterms"){const p=POS.find(x=>x.id===t.dataset.id);p.terms=+t.value;toast(p.id+" payment terms set to "+termLabel(p.terms)+".");renderPage();poModal(p.id)}
-  else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
+  else if(c==="podp"){const p=POS.find(x=>x.id===t.dataset.id);p.dp=+t.value;p.terms=p.dp<100?-1:0;toast(p.id+" down payment set to "+dpLabel(p.dp)+".");renderPage();poModal(p.id)}
   else if(c==="supkind"){const i=t.value==="International";$("#snCtryW").style.display=i?"":"none";$("#snPortW").style.display=i?"":"none";$("#snLead").value=i?30:3}
   else if(c==="uitem"){const e=$("#"+t.dataset.id);if(e)e.innerHTML=unitOpts(I(t.value));nsStockUpd()}
-  else if(c==="nsstock")nsStockUpd()
+  else if(c==="nsstock"||c==="nsrow")nsStockUpd()
+  else if(c==="rcdmg"){RCV.dm[t.dataset.id]=Math.min(RCV.sc[t.dataset.id],Math.max(0,parseInt(t.value)||0));recvForm(RCV.id)}
+  else if(c==="rcwhy")RCV.reason=t.value
   else if(c==="repdate"){if(!t.value)return;FIL[t.dataset.id==="from"?"repFrom":"repTo"]=t.value;if(!FIL.repFrom)FIL.repFrom=ymdv(addDays(-30));if(!FIL.repTo)FIL.repTo=ymdv(addDays(0));
     if(FIL.repFrom>FIL.repTo){if(t.dataset.id==="from")FIL.repTo=FIL.repFrom;else FIL.repFrom=FIL.repTo;toast("The start date was after the end date, so I matched them.")}renderPage()}
   else if(c==="role"){ROLE=t.value;applyRole();if(!pageOK(page))setPage(ROLES[ROLE].pages[0]);else renderPage();toast("Now viewing as "+ROLE+".")}
