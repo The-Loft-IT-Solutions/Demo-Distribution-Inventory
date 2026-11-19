@@ -770,7 +770,7 @@ function renderPage(){
   const R={leads:rLeads,dash:rDash,purchasing:rPurchasing,vehicles:rVehicles,inbound:rInbound,inventory:rInventory,sales:rSales,collections:rCollections,settings:rSettings,users:rUsers,customers:rCustomers,reports:rReports,returns:rReturns,trail:rTrail};
   applyRole();$("#page").innerHTML=R[page]();paintIcons($("#page"));
 }
-const filt=(k,opts)=>`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
+const filt=(k,opts)=>opts.length>5?`<div class="filters" role="group" aria-label="Filter"><select data-chg="filsel" data-k="${k}" aria-label="Filter" style="min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);min-width:200px">${opts.map(o=>`<option value="${esc(o)}" ${FIL[k]===o?"selected":""}>${o}</option>`).join("")}</select></div>`:`<div class="filters" role="group" aria-label="Filter">${opts.map(o=>`<button class="${FIL[k]===o?"active":""}" data-act="fil" data-k="${k}" data-id="${o}">${o}</button>`).join("")}</div>`;
 const kpi=(icn,k,v,s)=>`<div class="kpi"><div class="k">${ic(icn,16)}${k}</div><div class="v">${v}</div><div class="s">${s||""}</div></div>`;
 function unitsOut(days){
   const m={};ORDERS.filter(o=>(o.status==="Delivered"||o.status==="Out for Delivery")&&(days<0?inCustom(o.delivered||o.date):dayDiff(TODAY,o.delivered||o.date)<=days)).forEach(o=>o.lines.forEach(l=>{m[l.sku]=m[l.sku]||{q:0,v:0};m[l.sku].q+=l.qty;m[l.sku].v+=l.qty*I(l.sku).price}));
@@ -1130,7 +1130,8 @@ function rInventory0(){
   <div class="toolbar"><input type="search" data-q="inv" placeholder="Search SKU, product no., model no., item or category" value="${esc(FIL.invQ||"")}" aria-label="Search inventory"><span style="display:flex;gap:8px;flex-wrap:wrap">${can("items")?`<button class="btn btn-ghost btn-sm" data-act="import" data-id="items">${ic("upload",14)}Import from Excel</button>`:""}${can("items")?`<button class="btn btn-primary btn-sm" data-act="item-new">${ic("plus",14)}Add item</button>`:""}</span></div>
   <div class="panel" id="invTbl">${rInvTable()}</div>${MULTI?trfPanel():""}${dmgPanel()}`;
 }
-function itemModal(sku){
+function itemModal(sku){itemModal0(sku);if(can("items"))$("#mFoot").insertAdjacentHTML("afterbegin",`<button class="btn btn-ghost" data-act="item-edit" data-id="${sku}">Edit item</button>`)}
+function itemModal0(sku){
   const i=I(sku), mv=[];
   SHIPMENTS.filter(s=>s.stage===4).forEach(s=>s.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:s.eta,t:"Inbound "+s.id,w:s.wh,q:l.qty})));
   ORDERS.filter(o=>o.status==="Out for Delivery"||o.status==="Delivered").forEach(o=>o.lines.filter(l=>l.sku===sku).forEach(l=>mv.push({d:o.delivered||o.date,t:"Outbound "+o.id+" to "+CUSTNAME(o.cust),w:o.wh,q:-l.qty})));
@@ -1145,6 +1146,25 @@ function itemModal(sku){
 }
 function dmgPanel(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Damage and write-offs</h2>${can("writeoff")?`<button class="btn btn-primary btn-sm" data-act="dmg-new">${ic("plus",14)}Report damage</button>`:""}</div><div class="tw"><table><thead><tr><th>Report</th><th>Date</th><th>Item</th><th>Warehouse</th><th>Lot</th><th class="num">Qty</th><th>Reason</th>${can("cost")?`<th class="num">Cost value</th>`:""}<th></th></tr></thead><tbody>${DAMAGES.slice().reverse().map(d=>`<tr><td><b>${d.id}</b></td><td>${dfmt(d.date)}</td><td>${I(d.sku).name}</td><td>${WH[d.wh]}</td><td>${d.lot}</td><td class="num">${fq(d.sku,d.qty)}</td><td>${d.reason}</td>${can("cost")?`<td class="num">${money(d.qty*I(d.sku).cost)}</td>`:""}<td>${d.rtv?`<span class="badge b-info">${d.rtv}</span>`:can("writeoff")?`<button class="btn btn-ghost btn-sm" data-act="rtv-new" data-id="${d.id}">Return to vendor</button>`:""}</td></tr>`).join("")}</tbody></table></div><p class="note" style="margin-top:8px">A damage report removes the stock right away, earliest expiry first, and feeds the Damage report.</p></div>`;
+}
+function itemEdit(sku){
+  if(!perm("items","Editing an item"))return;const i=I(sku);
+  openModal("Edit "+i.sku,`<label class="f">Description (optional)<input id="neName" value="${esc(i.desc||"")}"></label>
+  <div class="grid2"><label class="f">Product number<input id="nePn" value="${esc(i.pn||"")}"></label><label class="f">Model number<input id="neModel" value="${esc(i.model||"")}"></label><label class="f">Category<select id="neCat">${Object.keys(CATS).map(c=>`<option ${c===i.cat?"selected":""}>${c}</option>`).join("")}</select></label><label class="f">Serial number tracking<select id="neSer"><option value="yes" ${i.serial?"selected":""}>Yes, record serial numbers</option><option value="no" ${i.serial?"":"selected"}>No</option></select></label><label class="f">Reorder level (pieces)<input id="neRe" type="number" min="0" value="${i.reorder}"></label><label class="f">Warranty (months)<input id="neWar" type="number" min="0" value="${i.warr||0}"></label>${can("cost")?`<label class="f">Cost per piece (PHP)<input id="neCost" type="number" min="0" step="any" value="${i.cost}"></label>`:""}<label class="f">Selling price per piece (PHP)<input id="nePrice" type="number" min="0" step="any" value="${i.price}"></label></div>
+  <p class="note">Stock quantities are not edited here. Use Inventory, Adjustments to correct a count.</p>`,
+  `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="item-save" data-id="${i.sku}">Save changes</button>`);
+}
+function itemSave(sku){
+  if(!perm("items","Editing an item"))return;const i=I(sku),pn=$("#nePn").value.trim(),model=$("#neModel").value.trim();
+  if(!pn||!model){toast("Enter the product number and the model number.");return}
+  if(ITEMS.some(x=>x!==i&&(x.model||"").toLowerCase()===model.toLowerCase())){toast("Model number "+model+" is already used by another item.");return}
+  const cost=$("#neCost")?parseFloat($("#neCost").value)||0:i.cost,price=parseFloat($("#nePrice").value)||0;
+  if(cost<=0||price<=0){toast("Enter the cost and selling price per piece.");return}
+  const ch=[];const set=(k,v,l)=>{if(i[k]!==v){ch.push(l);i[k]=v}};
+  set("desc",$("#neName").value.trim()||pn,"description");set("pn",pn,"product no.");set("model",model,"model no.");set("cat",$("#neCat").value,"category");set("serial",$("#neSer").value==="yes","serial tracking");
+  set("reorder",Math.max(0,parseFloat($("#neRe").value)||0),"reorder level");set("warr",Math.max(0,parseInt($("#neWar").value)||0),"warranty");set("cost",cost,"cost");set("price",price,"price");
+  if(!ch.length){closeModal();toast("No changes to save.");return}
+  audit(i.sku,"Item edited",ch.join(", "));closeModal();toast(i.sku+" updated ("+ch.join(", ")+")"+(price<cost?". Note: the selling price is below cost.":"."));renderPage();
 }
 function itemNew(){
   openModal("Add item",`<label class="f">Description (optional)<input id="niName" placeholder="e.g. 43-inch Smart LED TV"></label>
@@ -1273,10 +1293,26 @@ function dlvSave(id){
 }
 /* ---------- exports ---------- */
 function dlCsv(name,rows){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+rows.map(r=>r.map(c=>'"'+String(c).replace(/\s+/g," ").trim().replace(/"/g,'""')+'"').join(",")).join("\r\n")],{type:"text/csv"}));a.download=name+".csv";document.body.appendChild(a);a.click();a.remove();toast("Exported "+name+".csv. It opens in Excel.")}
-const tblRows=t=>[...t.rows].map(r=>[...r.cells].filter(c=>!c.querySelector("button")).map(c=>c.textContent));
+const tblRows=t=>[...t.rows].filter(r=>r.style.display!=="none").map(r=>[...r.cells].filter(c=>!c.querySelector("button")).map(c=>c.textContent));
 function exportModal(){const b=$("#mBody"),ti=$("#mTitle").textContent,rows=[[ti]];b.querySelectorAll(".kv > div").forEach(d=>{const k=d.querySelector("b"),kt=k?k.textContent:"";rows.push([kt,d.textContent.replace(kt,"").trim()])});b.querySelectorAll("table").forEach(t=>{rows.push([]);tblRows(t).forEach(r=>rows.push(r))});dlCsv((ti||"export").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,""),rows)}
 let expN=0;
-function addExports(){const pg=$("#page");if(!pg)return;pg.querySelectorAll("table").forEach(t=>{if(t.id==="repTable"||t.dataset.exp)return;const tw=t.closest(".tw");if(!tw)return;t.dataset.exp=++expN;tw.insertAdjacentHTML("beforebegin",`<div class="exprow" style="text-align:right;margin:0 0 6px"><button class="btn btn-ghost btn-sm" data-act="exp" data-id="${expN}">${ic("download",14)}Export CSV</button></div>`);paintIcons(tw.previousElementSibling)})}
+const DREX=/[A-Z][a-z]{2} \d{1,2}, \d{4}/,DCOL=/date|eta|due|deliver|expiry|created|received|opened|booked/i;
+const cellVal=c=>{const x=c.textContent.trim(),d=DREX.exec(x);if(d&&x.length<=d[0].length+14)return Date.parse(d[0]);const n=parseFloat(x.replace(/[^0-9.\-]/g,""));return /^[\sUS$₱\-+0-9.,%]+$/.test(x)&&!isNaN(n)?n:x.toLowerCase()};
+const MGD=["invTbl","custTbl","serTbl","trailTbl"];
+function tblApply(t){const b=document.querySelector('.tbar[data-for="'+t.dataset.exp+'"]');if(!b)return;
+  const q=(b.querySelector(".tq")||{value:""}).value.toLowerCase(),f=b.querySelector(".tf"),to=b.querySelector(".tt"),dc=+b.dataset.dc,fm=f&&f.value?Date.parse(f.value):null,tm=to&&to.value?Date.parse(to.value)+86399999:null;let n=0,tot=0;
+  [...t.tBodies[0].rows].forEach(r=>{if(r.dataset.keep){return}tot++;let ok=!q||r.textContent.toLowerCase().includes(q);if(ok&&(fm||tm)&&dc>=0){const v=cellVal(r.cells[dc]);ok=typeof v==="number"&&(!fm||v>=fm)&&(!tm||v<=tm)}r.style.display=ok?"":"none";if(ok)n++});
+  const c=b.querySelector(".tc");if(c)c.textContent=n===tot?tot+" rows":n+" of "+tot+" rows"}
+function addExports(){const pg=$("#page");if(!pg)return;pg.querySelectorAll("table").forEach(t=>{if(t.dataset.exp)return;const tw=t.closest(".tw");if(!tw)return;if(t.closest("#"+MGD.join(",#")))return;
+  const id=++expN;t.dataset.exp=id;const rows=t.tBodies[0]?[...t.tBodies[0].rows]:[],real=rows.filter(r=>r.cells.length>1&&r.cells[0].colSpan<2&&!/^total/i.test(r.cells[0].textContent.trim())),big=real.length>=6;
+  rows.forEach(r=>{if(/^total/i.test(r.cells[0].textContent.trim()))r.dataset.keep=1});
+  const heads=[...t.tHead?t.tHead.rows[0].cells:[]],dc=heads.findIndex(h=>DCOL.test(h.textContent)&&!/amount|days/i.test(h.textContent));
+  const inp='min-height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);font:inherit';
+  tw.insertAdjacentHTML("beforebegin",`<div class="tbar" data-for="${id}" data-dc="${big?dc:-1}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 6px">${big?`<input class="tq" type="search" placeholder="Search this table" aria-label="Search this table" style="${inp};min-width:180px">`:""}${big&&dc>=0?`<label class="note" style="display:flex;gap:4px;align-items:center">From<input class="tf" type="date" style="${inp}"></label><label class="note" style="display:flex;gap:4px;align-items:center">To<input class="tt" type="date" style="${inp}"></label>`:""}${big?`<button class="btn btn-ghost btn-sm tclr" type="button">Clear</button><span class="note tc">${real.length} rows</span>`:""}<span style="flex:1"></span><button class="btn btn-ghost btn-sm" data-act="exp" data-id="${id}">${ic("download",14)}Export CSV</button></div>`);
+  const b=tw.previousElementSibling;paintIcons(b);if(!big)return;
+  b.addEventListener("input",()=>tblApply(t));b.querySelector(".tclr").addEventListener("click",()=>{b.querySelectorAll("input").forEach(x=>x.value="");tblApply(t)});
+  heads.forEach((h,k)=>{if(!h.textContent.trim())return;h.style.cursor="pointer";h.title="Click to sort";h.addEventListener("click",()=>{const asc=h.dataset.s!=="a";heads.forEach(x=>{x.dataset.s="";x.textContent=x.textContent.replace(/ [▲▼]$/,"")});h.dataset.s=asc?"a":"d";h.textContent+=asc?" ▲":" ▼";h.setAttribute("aria-sort",asc?"ascending":"descending");
+   const body=t.tBodies[0],rs=[...body.rows],keep=rs.filter(r=>r.dataset.keep),srt=rs.filter(r=>!r.dataset.keep&&r.cells[k]);srt.sort((x,y)=>{const a=cellVal(x.cells[k]),c=cellVal(y.cells[k]);const r=typeof a==="number"&&typeof c==="number"?a-c:String(a).localeCompare(String(c),undefined,{numeric:true});return asc?r:-r});srt.concat(keep).forEach(r=>body.appendChild(r))})})})}
 /* ---------- customer returns and credit notes ---------- */
 function makeReturn(o,sku,qty,reason,disp,date,res,pend){
   const it=I(sku), id="RET-"+(++retSeq), rp=res==="Replace";
@@ -1481,7 +1517,7 @@ function rPurchasing(){const t=FIL.purTab;if(ROLE===EXT)return `<p class="note">
 function poTab(){const shareNote=ROLE!==EXT&&(ROLE==="Owner"||ROLE==="Admin"||ROLE==="Accounting")?`<p class="note">Purchase orders to China suppliers are shared read-only with the Partner Company (external) role. Switch "Viewing as" to see what they see.</p>`:"";
   const rows=POS.filter(p=>(FIL.po==="All"||poStatus(p)===FIL.po)&&(ROLE!==EXT||SUP(p.sup).country==="China")).sort((a,b)=>b.date-a.date||b.id.localeCompare(a.id));
   return shareNote+`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("po",["All","Draft","Sent","Confirmed","In transit","Received"])}${can("po_draft")?`<button class="btn btn-primary btn-sm" data-act="po-new">${ic("plus",14)}New purchase order</button>`:""}</div>
-  <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th>Terms</th><th class="num">Qty</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td>${termShort(p)}</td><td class="num">${fqs(p.lines)}</td><td class="num">${money(poTotal(p))}</td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
+  <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th>Terms</th><th class="num">Qty</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td>${termShort(p)}</td><td class="num">${fqs(p.lines)}</td><td class="num">${poUsd(p)}<br><small>${money(poTotal(p))}</small></td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
 }
 function poModal(id){
   const p=POS.find(x=>x.id===id), sp=SUP(p.sup), st=poStatus(p), tot=poTotal(p), intl=sp.kind==="International", sh=poShip(p), bl=BILLS.filter(b=>b.po===p.id);
@@ -1491,9 +1527,9 @@ function poModal(id){
   else if(st==="Sent")act=can("po_confirm")?`<button class="btn btn-accent" data-act="po-next" data-id="${p.id}">Mark as confirmed</button>`:`<span class="note">Recording the supplier confirmation needs Purchasing Officer, Warehouse Manager or Admin.</span>`;
   else if(st==="Confirmed")act=can("po_dispatch")?(intl?`<button class="btn btn-accent" data-act="po-book" data-id="${p.id}">Create inbound shipment</button>`:`<button class="btn btn-accent" data-act="po-dispatch" data-id="${p.id}">Mark as dispatched</button>`):`<span class="note">Recording dispatch needs Warehouse Manager or Admin.</span>`;
   else if(st==="In transit")act=`<button class="btn btn-accent" data-act="ship" data-id="${sh.id}">Track ${sh.id}</button>`;
-  openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Down payment</b>${st==="Draft"||st==="Sent"?`<select data-chg="podp" data-id="${p.id}">${DPOPTS.map(t=>`<option value="${t}" ${t===p.dp?"selected":""}>${dpLabel(t)}</option>`).join("")}</select>`:dpLabel(p.dp)}</div><div><b>Payment terms</b>${(st==="Draft"||st==="Sent")&&(p.dp||0)<100&&can("po_draft")?`<select data-chg="poterms" data-id="${p.id}">${termOptsHtml(p.dp||0,p.terms)}</select>`:termLabelP(p)}</div><div><b>Approval</b>${p.status!=="Draft"||p.appr?"Approved"+(p.apprBy?" by "+p.apprBy:""):"Awaiting approval"}</div>${p.cur&&p.cur!=="PHP"?`<div><b>Cost currency</b>${p.cur} at ${money(p.fx)} per ${p.cur}</div>`:""}${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
+  openModal(p.id+" · "+p.sup,`<div class="kv"><div><b>Supplier</b>${p.sup}</div><div><b>Point of origin</b>${originOf(p.sup)}</div><div><b>Status</b><span class="badge ${poBadge[st]}">${st}</span></div><div><b>Deliver to</b>${WH[p.wh]}</div><div><b>Expected</b>${dfmt(p.expected)}</div><div><b>Down payment</b>${st==="Draft"||st==="Sent"?`<select data-chg="podp" data-id="${p.id}">${DPOPTS.map(t=>`<option value="${t}" ${t===p.dp?"selected":""}>${dpLabel(t)}</option>`).join("")}</select>`:dpLabel(p.dp)}</div><div><b>Payment terms</b>${(st==="Draft"||st==="Sent")&&(p.dp||0)<100&&can("po_draft")?`<select data-chg="poterms" data-id="${p.id}">${termOptsHtml(p.dp||0,p.terms)}</select>`:termLabelP(p)}</div><div><b>Approval</b>${p.status!=="Draft"||p.appr?"Approved"+(p.apprBy?" by "+p.apprBy:""):"Awaiting approval"}</div><div><b>Cost currency</b>USD at ${money(p.fx||FX)} per US$1</div><div><b>Total (USD)</b>${poUsd(p)} = ${money(poTotal(p))}</div>${sh?`<div><b>Inbound shipment</b>${sh.id}</div>`:""}</div>
    <ul class="tl">${flow.map((x,j)=>`<li class="${j<k?"done":j===k?"cur":""}"><span class="c">${j<k||(j===k&&x==="Received")?ic("check",12):""}</span>${x}</li>`).join("")}</ul>
-   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${fq(l.sku,l.qty)}</td><td class="num">${p.cur&&p.cur!=="PHP"?fmtc(p.cur,l.fc!==undefined?l.fc:l.cost/p.fx)+`<br><small>${money(l.cost)}</small>`:money(l.cost)}</td><td class="num">${money(l.qty*l.cost)}</td></tr>`).join("")}</tbody></table></div>
+   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${fq(l.sku,l.qty)}</td><td class="num">${fmtc("USD",poFc(p,l))}<br><small>${money(l.cost)}</small></td><td class="num">${fmtc("USD",l.qty*poFc(p,l))}<br><small>${money(l.qty*l.cost)}</small></td></tr>`).join("")}</tbody></table></div>
    <div class="sum">${p.dp?`<div><span>Down payment (${p.dp}%)</span><span>${money(dpAmt(p))}</span></div><div><span>${p.dp===100?"Balance":"Balance (full payment upon loading, "+(100-p.dp)+"%)"}</span><span>${money(balAmt(p))}</span></div>`:""}<div class="tot"><span>PO total</span><span>${money(tot)}</span></div></div>${intl?`<p class="note">${usdNote(p.sup,tot)}. Freight, duties and port fees are billed separately by the forwarder and broker.</p>`:""}
    ${bl.length?`<h4 style="margin:14px 0 6px">Bills</h4><div class="tw"><table><tbody>${bl.map(b=>`<tr><td>${b.id}</td><td>${b.type}</td><td>${dfmt(b.due)}</td><td><span class="badge ${billBadge[billStat(b)]}">${billStat(b)}</span></td><td class="num">${money(b.amt)}</td></tr>`).join("")}</tbody></table></div>`:""}${trailBlock(p.id)}`,
    `<button class="btn btn-ghost" data-act="modal-close">Close</button>${act}`);
@@ -1565,7 +1601,7 @@ function supCreate(){
 }
 let poN=3,poRowFn=null;
 let poEditId=null;
-const CURR={PHP:1,USD:61.6,CNY:8.6,THB:1.9,EUR:71.5};
+const CURR={USD:FX};const poFc=(p,l)=>l.fc!==undefined?l.fc:l.cost/(p.fx||FX),poUsd=p=>fmtc("USD",p.lines.reduce((n,l)=>n+l.qty*poFc(p,l),0));
 const fmtc=(c,v)=>c+" "+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 function poEdit(id){const p=POS.find(x=>x.id===id);if(!perm("po_draft","Editing a purchase order"))return;if(p.status!=="Draft"){toast("Only a draft purchase order can be edited.");return}closeModal();poNew(p.sup,p)}
 function poApprove(id){if(!perm("po_approve","Approving a purchase order"))return;const p=POS.find(x=>x.id===id);p.appr=true;p.apprBy=ROLE;audit(p.id,"Purchase order approved","By "+ROLE);closeModal();toast(p.id+" approved. It can now be sent to "+p.sup+".");renderPage()}
@@ -1573,7 +1609,7 @@ function poNew(supName,ed){
   if(!perm("po_draft","Creating a purchase order"))return;
   const E=ed&&typeof ed==="object"?ed:null;poEditId=E?E.id:null;
   const sn=E?E.sup:(typeof supName==="string"&&SUP(supName)?supName:"Supplier E"), sp=SUP(sn);
-  const cur=E?(E.cur||"PHP"):(CURR[sp.cur]?sp.cur:"PHP"), fx=E?(E.fx||CURR[cur]||1):CURR[cur], dp0=E?(E.dp||0):0;
+  const cur="USD", fx=E?(E.fx||FX):FX, dp0=E?(E.dp||0):0;
   let sug=E?E.lines.map(l=>I(l.sku)):ITEMS.filter(i=>sp.cats.includes(i.cat)&&totalStock(i)<=i.reorder).slice(0,3);
   const sugd=!E&&sug.length>0; if(!sug.length)sug=ITEMS.filter(i=>sp.cats.includes(i.cat)).slice(0,1);
   const row=k=>{const it=sug[k],ln=E&&E.lines[k],q=ln?ln.qty:(it?Math.max(10,Math.round((it.reorder*2-totalStock(it)-incoming(it.sku))/10)*10):""),c=ln?(ln.fc!==undefined?ln.fc:+(ln.cost/fx).toFixed(2)):(it?+(it.cost/fx).toFixed(2):"");
@@ -1583,8 +1619,8 @@ function poNew(supName,ed){
    <label class="f">Deliver to<select id="poWh"><option value="A" ${E&&E.wh==="A"?"selected":""}>${WH.A}</option>${MULTI?`<option value="B" ${E&&E.wh==="B"?"selected":""}>Warehouse B</option>`:""}</select></label>
    <label class="f">Down payment<select id="poDp" data-chg="pogap">${DPOPTS.map(t=>`<option value="${t}" ${t===dp0?"selected":""}>${dpLabel(t)}</option>`).join("")}</select></label>
    <label class="f">Payment terms<select id="poTerms" data-chg="pogap" data-dp="${dp0}">${termOptsHtml(dp0,E?E.terms:undefined)}</select></label>
-   <label class="f">Cost currency<select id="poCur" data-chg="pocur">${Object.keys(CURR).map(c=>`<option ${c===cur?"selected":""}>${c}</option>`).join("")}</select></label>
-   <label class="f">Rate (PHP per 1 unit, sample rate, editable)<input id="poFx" data-chg="pogap" type="number" min="0" step="any" value="${fx}"></label></div>
+   <label class="f">Cost currency<select id="poCur" data-chg="pocur" disabled>${Object.keys(CURR).map(c=>`<option ${c===cur?"selected":""}>${c}</option>`).join("")}</select></label>
+   <label class="f">Rate (PHP per US$1, sample rate, editable)<input id="poFx" data-chg="pogap" type="number" min="0" step="any" value="${fx}"></label></div>
    <p class="note" style="margin:0 0 8px">${sp.kind} supplier, usual lead time ${sp.lead} days. ${sugd?"Items below are at or under their reorder level.":""}</p>
    <div style="display:grid;grid-template-columns:1fr 84px 110px;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px"><span>Item (product no. / model no.)</span><span>Qty (pieces)</span><span id="poCostH">Cost / piece (${cur})</span></div><div id="poRows">${Array.from({length:poN},(_,k)=>row(k)).join("")}</div><button class="btn btn-ghost btn-sm" type="button" data-act="po-addrow">${ic("plus",14)}Add item</button><div id="poGap" class="note" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px"></div>`,
    `<button class="btn btn-ghost" data-act="modal-close">Cancel</button><button class="btn btn-accent" data-act="po-create">${E?"Save changes":"Save as draft"}</button>`);
@@ -1863,7 +1899,7 @@ document.addEventListener("click",e=>{
   else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-addrow"){$("#poRows").insertAdjacentHTML("beforeend",poRowFn(poN++));const r=$("#poRows").lastElementChild;r.scrollIntoView({block:"nearest"});r.querySelector("select").focus()}else if(a==="po-next")poNext(id);else if(a==="po-book"){if(perm("po_dispatch","Creating an inbound shipment"))shipForm(id,"")}else if(a==="po-dispatch"){if(perm("po_dispatch","Recording dispatch"))trkForm("po",id)}else if(a==="po-edit")poEdit(id);else if(a==="po-approve")poApprove(id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);else if(a==="bill-req"){const b=BILLS.find(x=>x.id===id);b.req={by:ROLE,date:addDays(0)};closeModal();toast("Payment requested for "+b.id+". Accounting will see it on the bill.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
-  else if(a==="adj-new")adjNew();else if(a==="adj-create")adjCreate();else if(a==="adj-yes")adjDecide(id,true);else if(a==="adj-no")adjDecide(id,false);
+  else if(a==="item-edit"){closeModal();itemEdit(id)}else if(a==="item-save")itemSave(id);else if(a==="adj-new")adjNew();else if(a==="adj-create")adjCreate();else if(a==="adj-yes")adjDecide(id,true);else if(a==="adj-no")adjDecide(id,false);
   else if(a==="exp-modal")exportModal();else if(a==="exp"){const tb=document.querySelector('[data-exp="'+id+'"]');if(tb)dlCsv(PAGES[page].replace(/[^A-Za-z]+/g,"-")+"-"+id,tblRows(tb))}
 });
 $("#acctForm").addEventListener("submit",e=>{e.preventDefault();const f=e.target.elements, a={id:"APP-"+(++appSeq),date:addDays(0),name:f[0].value.trim(),company:f[1].value.trim(),email:f[2].value.trim(),mobile:f[3].value.trim(),type:f[4].value,terms:parseInt(f[5].value.replace(/\D/g,""))||30,status:"Pending"};APPS.push(a);e.target.reset();toast("Application "+a.id+" received. We will contact you within one business day.")});
@@ -1888,6 +1924,7 @@ document.addEventListener("change",e=>{const t=e.target.closest("[data-chg]");if
   else if(c==="setcash"){SET.cash=Math.max(0,parseFloat(t.value)||0);toast("Opening cash balance set to "+money(SET.cash)+".")}
   else if(c==="setoverdue"){SET.assumeOverdue=t.value==="yes";toast(SET.assumeOverdue?"Overdue invoices are counted as collected this week.":"Overdue invoices are left out of the cash outlook.")}
   else if(c==="pocur"){const cu=t.value;$("#poFx").value=CURR[cu];$("#poCostH").textContent="Cost / piece ("+cu+")";for(let k=0;k<poN;k++){const it=I($("#poItem"+k).value);if(it)$("#poCost"+k).value=+(it.cost/CURR[cu]).toFixed(2)}poGapUpd()}
+  else if(c==="filsel"){FIL[t.dataset.k]=t.value;FIL.invPage=0;FIL.custPage=0;renderPage()}
   else if(c==="adjsys")adjSys()
   else if(c==="pogap")poGapUpd()
   else if(c==="stockrule"){SET.stockRule=t.value;toast(t.value==="block"?"Orders above available stock are now blocked.":"Orders above available stock are now allowed.")}
@@ -1899,6 +1936,22 @@ document.addEventListener("input",e=>{const t=e.target.closest("[data-q]");if(!t
   if(k==="cat"){FIL.catN=12;renderCatalog();return}
   const c=$("#"+k+"Tbl");if(c){c.innerHTML=TBL[k]();paintIcons(c)}});
 paintIcons();
+const NAVT={purchasing:["purTab",()=>["Purchase orders","Suppliers","Payables"]],inventory:["invTab",()=>["Items","Adjustments"]],sales:["salesTab",()=>HASSER?["Orders","Units out per item","Serial numbers"]:["Orders","Units out per item"]],collections:["collTab",()=>["Invoices","PDCs","Customer credit"]],customers:["custTab",()=>["Customers","Applications"]],leads:["leadTab",()=>["Pipeline","List"]],reports:["rep",()=>ROLES[ROLE].reps||REPS]};
+let fly=null,flyBtn=null,flyPt=null,flyT=null;
+const flyHide=()=>{clearTimeout(flyT);flyT=null;if(fly){fly.remove();fly=null;flyBtn=null}};
+const inTri=(p,a,b,c)=>{const s=(p1,p2,p3)=>(p1[0]-p3[0])*(p2[1]-p3[1])-(p2[0]-p3[0])*(p1[1]-p3[1]),d1=s(p,a,b),d2=s(p,b,c),d3=s(p,c,a);return !((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0))};
+const flyZone=p=>{if(!fly||!flyPt)return false;const r=fly.getBoundingClientRect();return inTri(p,flyPt,[r.left,r.top],[r.left,r.bottom])};
+function flyShow(b){const nt=NAVT[b.dataset.id];if(!nt||!pageOK(b.dataset.id)){flyHide();return}if(flyBtn===b)return;flyHide();const k=nt[0],opts=nt[1]();flyBtn=b;
+  fly=document.createElement("div");fly.id="flyout";fly.setAttribute("role","menu");fly.style.cssText="position:fixed;z-index:60;background:#2A2E3D;color:#fff;border-radius:10px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:190px;max-height:70vh;overflow:auto";
+  fly.innerHTML=opts.map(o=>`<button type="button" role="menuitem" data-fp="${b.dataset.id}" data-fk="${k}" data-fo="${esc(o)}" style="display:block;width:100%;text-align:left;padding:9px 12px;border-radius:7px;color:#fff;font:inherit;${(page===b.dataset.id&&(FIL[k]||opts[0])===o)?"background:#3A3F52;font-weight:600":""}" onmouseover="this.style.background='#3A3F52'" onmouseout="this.style.background='${(page===b.dataset.id&&(FIL[k]||opts[0])===o)?"#3A3F52":"transparent"}'">${o}</button>`).join("");
+  document.body.appendChild(fly);const r=b.getBoundingClientRect();fly.style.left=(r.right+4)+"px";fly.style.top=Math.max(8,Math.min(r.top,innerHeight-fly.offsetHeight-8))+"px"}
+const hoverOK=()=>matchMedia("(hover:hover)").matches&&!$("#side").classList.contains("open");
+$("#side").addEventListener("mouseover",e=>{if(!hoverOK())return;const b=e.target.closest("button.nl");if(!b)return;flyPt=[e.clientX,e.clientY];if(fly&&flyBtn!==b&&flyZone(flyPt)){return}clearTimeout(flyT);flyShow(b)});
+$("#side").addEventListener("mousemove",e=>{if(fly&&flyBtn&&flyBtn.contains(e.target))flyPt=[e.clientX,e.clientY]});
+$("#side").addEventListener("focusin",e=>{const b=e.target.closest("button.nl");if(b)flyShow(b)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")flyHide()});
+document.addEventListener("mousemove",e=>{if(!fly)return;const p=[e.clientX,e.clientY];if(fly.contains(e.target)||(flyBtn&&flyBtn.contains(e.target))){clearTimeout(flyT);flyT=null;return}if(flyZone(p)){clearTimeout(flyT);flyT=setTimeout(flyHide,450);return}if(!flyT)flyT=setTimeout(flyHide,150)});
+document.addEventListener("click",e=>{const o=e.target.closest("[data-fp]");if(o){FIL[o.dataset.fk]=o.dataset.fo;FIL.invPage=0;FIL.custPage=0;const p=o.dataset.fp;flyHide();setPage(p);return}if(fly&&!e.target.closest("#side"))flyHide()});
 new MutationObserver(()=>{clearTimeout(addExports.t);addExports.t=setTimeout(addExports,0)}).observe($("#page"),{childList:true,subtree:true});addExports();
 </script>
 </body>
