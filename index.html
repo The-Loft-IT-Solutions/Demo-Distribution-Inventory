@@ -68,6 +68,7 @@ td,th,.num,.kpi .v,.pipe button .n,.stats b,.bar b,.sum{font-variant-numeric:tab
 .view{padding-bottom:72px}
 
 /* Toast + modal */
+@media print{body>*:not(#printDoc){display:none!important}#printDoc{display:block!important}}#printDoc{display:none}
 #toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%) translateY(20px);background:var(--primary);color:#fff;padding:12px 20px;border-radius:10px;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:92vw;text-align:center;font-size:14px;border-left:4px solid var(--accent)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #modalBack{position:fixed;inset:0;background:rgba(20,22,30,.55);z-index:150;display:none;align-items:center;justify-content:center;padding:16px}
@@ -924,7 +925,8 @@ function rSales(){
   return filt("salesTab",HASSER?["Orders","Units out per item","Serial numbers"]:["Orders","Units out per item"])+(FIL.salesTab==="Serial numbers"&&HASSER?`<div class="toolbar"><input type="search" data-q="ser" placeholder="Search serial number, item, customer or order" value="${esc(FIL.serQ||"")}" aria-label="Search serial numbers"></div><div class="panel" id="serTbl">${rSerTable()}</div>`:FIL.salesTab==="Units out per item"?perItem:orders);
 }
 const NEXT_SO={"Credit Hold":"Pending",Pending:"Packed",Packed:"Out for Delivery","Out for Delivery":"Delivered"};
-function soModal(id){
+function soModal(id){soModal0(id);$("#mFoot").insertAdjacentHTML("afterbegin",`<button class="btn btn-ghost" data-act="pdf-so" data-id="${id}">${ic("download",14)}PDF</button>`)}
+function soModal0(id){
   const o=ORDERS.find(x=>x.id===id), nx=NEXT_SO[o.status], inv=invOf(o.id);
   openModal(o.id+" · "+CUSTNAME(o.cust),`<div class="kv"><div><b>Status</b><span class="badge ${ordBadge[o.status]}">${o.status}</span></div><div><b>Payment terms</b>Net ${CUSTS[o.cust].terms} days after delivery</div><div><b>Ship from</b>${WH[o.wh]}</div>${o.rel?`<div style="grid-column:1/-1"><b>On delivery</b>${o.rel}</div>`:""}${o.replaces?`<div><b>Replacement for</b>${o.replaces} (no charge)</div>`:""}<div><b>Delivery</b>${o.via==="Courier"?"Third-party courier ("+o.driver+(o.track?", "+o.track:"")+")":"Own truck ("+(vehOf(o)?vehOf(o).plate+", "+vehOf(o).type+", ":"")+o.driver+")"}</div>${o.delivered?`<div><b>Delivered</b>${dfmt(o.delivered)}</div>`:""}${o.fails&&o.fails.length?`<div style="grid-column:1/-1"><b>Failed delivery attempts</b>${o.fails.map(f=>dfmt(f.date)+": "+esc(f.why)).join("; ")}</div>`:""}${o.part?`<div style="grid-column:1/-1"><b>Partial delivery</b>${esc(o.part)}</div>`:""}${inv?`<div><b>Invoice</b>${inv.id}, due ${dfmt(inv.due)}</div>`:""}${o.pod?`<div><b>Proof of delivery</b>Received by ${esc(o.pod.by)}; photo ${o.pod.photo?"yes":"no"}; signature ${o.pod.sig?"yes":"no"}</div>`:""}${o.status==="Credit Hold"?`<div style="grid-column:1/-1"><b>Credit check</b><span style="color:var(--bad)">Exposure ${money(exposure(o.cust))} is over the ${money(CUSTS[o.cust].limit)} limit</span></div>`:""}</div>
   <div class="tw"><table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${o.lines.map(l=>`<tr><td>${I(l.sku).name}</td><td class="num">${fq(l.sku,l.qty)}${l.ord?` <span class="note">(ordered ${l.ord})</span>`:""}${l.buf?` <span class="note">(+${fq(l.sku,l.buf)} spare)</span>`:""}</td><td class="num">${money(I(l.sku).price)}</td><td class="num">${money(l.qty*I(l.sku).price)}</td></tr>`).join("")}</tbody></table></div>
@@ -1291,6 +1293,22 @@ function dlvSave(id){
   if(part.length){o.part=part.join("; ")+". Reason: "+why;audit(o.id,"Partial delivery",o.part)}
   deliver(o,"Customer representative");closeModal();if(part.length)toast(o.id+" delivered in part ("+part.length+(part.length===1?" line":" lines")+" short). The rest is back in stock and only the delivered pieces are invoiced.");renderPage();
 }
+/* ---------- formatted PDF (print to PDF) ---------- */
+function pdfDoc(title,meta,head,rows,tot,note){
+  let d=$("#printDoc");if(!d){d=document.createElement("div");d.id="printDoc";document.body.appendChild(d)}
+  const th=head.map((h,k)=>`<th style="text-align:${k?"right":"left"};padding:6px 8px;border-bottom:2px solid #222">${h}</th>`).join("");
+  d.innerHTML=`<div style="font:13px/1.5 Arial,sans-serif;color:#111;padding:24px;max-width:780px;margin:auto"><div style="display:flex;justify-content:space-between;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:14px"><div><div style="font-size:20px;font-weight:700">${esc(title)}</div><div style="color:#555">Company A, Distribution &amp; Inventory Management System</div></div><div style="text-align:right;color:#555">Printed ${dfmt(addDays(0))}</div></div>
+  <table style="width:100%;margin-bottom:14px">${meta.map(m=>`<tr><td style="width:34%;color:#555;padding:2px 0">${m[0]}</td><td><b>${m[1]}</b></td></tr>`).join("")}</table>
+  <table style="width:100%;border-collapse:collapse"><thead><tr>${th}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,k)=>`<td style="text-align:${k?"right":"left"};padding:6px 8px;border-bottom:1px solid #ccc">${c}</td>`).join("")}</tr>`).join("")}</tbody><tfoot><tr>${tot.map((c,k)=>`<td style="text-align:${k?"right":"left"};padding:8px;border-top:2px solid #222;font-weight:700">${c}</td>`).join("")}</tr></tfoot></table>
+  ${note?`<p style="margin-top:14px;color:#555">${note}</p>`:""}<div style="display:flex;gap:40px;margin-top:48px"><div style="flex:1;border-top:1px solid #111;padding-top:4px">Prepared by</div><div style="flex:1;border-top:1px solid #111;padding-top:4px">Approved by</div></div></div>`;
+  window.print();
+}
+function pdfPo(id){const p=POS.find(x=>x.id===id),sp=SUP(p.sup);
+  pdfDoc("Purchase order "+p.id,[["Supplier",esc(p.sup)+", "+esc(sp.country)],["Date",dfmt(p.date)],["Expected",dfmt(p.expected)],["Deliver to",WH[p.wh]],["Payment terms",termLabelP(p)],["Down payment",dpLabel(p.dp||0)],["Rate",`US$1 = ${money(p.fx||FX)}`],["Status",poStatus(p)+(p.appr||p.status!=="Draft"?", approved":", awaiting approval")]],
+  ["Item (product no. / model no.)","Qty","Unit cost (USD)","Amount (USD)","Amount (PHP)"],p.lines.map(l=>[esc(I(l.sku).name),fq(l.sku,l.qty),fmtc("USD",poFc(p,l)),fmtc("USD",l.qty*poFc(p,l)),money(l.qty*l.cost)]),["Total","","",poUsd(p),money(poTotal(p))],"PHP amounts use the rate on this purchase order.")}
+function pdfSo(id){const o=ORDERS.find(x=>x.id===id),tot=o.lines.reduce((n,l)=>n+l.qty*I(l.sku).price,0);
+  pdfDoc("Sales order "+o.id,[["Customer",esc(CUSTNAME(o.cust))],["Date",dfmt(o.date)],["Channel",esc(o.ch||"Offline")],["Warehouse",WH[o.wh]],["Delivery",o.via==="Courier"?"Third-party courier":esc((vehOf(o)||{}).plate||"Own truck")+(o.driver?", "+esc(o.driver):"")],["Status",o.status+(o.delivered?", delivered "+dfmt(o.delivered):"")]],
+  ["Item (product no. / model no.)","Qty","Unit price","Amount"],o.lines.map(l=>[esc(I(l.sku).name),fq(l.sku,l.qty),money(I(l.sku).price),money(l.qty*I(l.sku).price)]),["Total","","",money(tot)],o.part?"Partial delivery: "+esc(o.part):"")}
 /* ---------- exports ---------- */
 function dlCsv(name,rows){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+rows.map(r=>r.map(c=>'"'+String(c).replace(/\s+/g," ").trim().replace(/"/g,'""')+'"').join(",")).join("\r\n")],{type:"text/csv"}));a.download=name+".csv";document.body.appendChild(a);a.click();a.remove();toast("Exported "+name+".csv. It opens in Excel.")}
 const tblRows=t=>[...t.rows].filter(r=>r.style.display!=="none").map(r=>[...r.cells].filter(c=>!c.querySelector("button")).map(c=>c.textContent));
@@ -1519,7 +1537,8 @@ function poTab(){const shareNote=ROLE!==EXT&&(ROLE==="Owner"||ROLE==="Admin"||RO
   return shareNote+`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">${filt("po",["All","Draft","Sent","Confirmed","In transit","Received"])}${can("po_draft")?`<button class="btn btn-primary btn-sm" data-act="po-new">${ic("plus",14)}New purchase order</button>`:""}</div>
   <div class="panel"><div class="tw"><table><thead><tr><th>PO</th><th>Supplier</th><th>Point of origin</th><th>Expected</th><th>Terms</th><th class="num">Qty</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>{const st=poStatus(p);return `<tr><td><b>${p.id}</b></td><td>${p.sup}</td><td>${originOf(p.sup)}</td><td>${dfmt(p.expected)}</td><td>${termShort(p)}</td><td class="num">${fqs(p.lines)}</td><td class="num">${poUsd(p)}<br><small>${money(poTotal(p))}</small></td><td><span class="badge ${poBadge[st]}">${st}</span></td><td><button class="btn btn-ghost btn-sm" data-act="po" data-id="${p.id}">View</button></td></tr>`}).join("")}</tbody></table></div></div>`;
 }
-function poModal(id){
+function poModal(id){poModal0(id);$("#mFoot").insertAdjacentHTML("afterbegin",`<button class="btn btn-ghost" data-act="pdf-po" data-id="${id}">${ic("download",14)}PDF</button>`)}
+function poModal0(id){
   const p=POS.find(x=>x.id===id), sp=SUP(p.sup), st=poStatus(p), tot=poTotal(p), intl=sp.kind==="International", sh=poShip(p), bl=BILLS.filter(b=>b.po===p.id);
   const flow=["Draft","Sent","Confirmed","In transit","Received"], k=flow.indexOf(st);
   let act="";
@@ -1632,8 +1651,8 @@ function poCreate(){
   const lines=Array.from({length:poN},(_,k)=>k).map(k=>{const sku=$("#poItem"+k).value,fc=parseFloat($("#poCost"+k).value)||0;return {sku,qty:sku?toStock(I(sku),$("#poU"+k).value,parseFloat($("#poQty"+k).value)||0):0,fc,cost:fc*fx}}).filter(l=>l.sku&&l.qty>0);
   if(!lines.length){toast("Add at least one item with a quantity.");return}
   lines.forEach(l=>{if(!l.cost){l.cost=I(l.sku).cost;l.fc=+(l.cost/fx).toFixed(2)}});
-  if(poEditId){const p=POS.find(x=>x.id===poEditId);Object.assign(p,{terms:+$("#poTerms").value,dp:+$("#poDp").value,wh:$("#poWh").value,cur,fx,lines});p.appr=false;audit(p.id,"Draft edited",money(poTotal(p)));poEditId=null;closeModal();toast(p.id+" updated: "+money(poTotal(p))+". It needs approval again before it can be sent.");renderPage();return}
-  const p={id:"PO-"+(++poSeq),sup:sn,terms:+$("#poTerms").value,dp:+$("#poDp").value,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines,cur,fx,appr:false};POS.push(p);audit(p.id,"Purchase order created",sn+", "+money(poTotal(p)));
+  if(poEditId){const p=POS.find(x=>x.id===poEditId);const ofx=p.fx||FX;if(ofx!==fx)audit(p.id,"Exchange rate changed","US$1 from "+money(ofx)+" to "+money(fx)+", by "+ROLE);Object.assign(p,{terms:+$("#poTerms").value,dp:+$("#poDp").value,wh:$("#poWh").value,cur,fx,lines});p.appr=false;audit(p.id,"Draft edited",money(poTotal(p)));poEditId=null;closeModal();toast(p.id+" updated: "+money(poTotal(p))+". It needs approval again before it can be sent.");renderPage();return}
+  const p={id:"PO-"+(++poSeq),sup:sn,terms:+$("#poTerms").value,dp:+$("#poDp").value,date:addDays(0),expected:addDays(SUP(sn).lead),wh:$("#poWh").value,status:"Draft",lines,cur,fx,appr:false};POS.push(p);audit(p.id,"Purchase order created",sn+", "+poUsd(p)+" at US$1 = "+money(fx)+" ("+money(poTotal(p))+")");
   FIL.po="All";closeModal();toast(p.id+" saved as a draft for "+sn+": "+money(poTotal(p))+". It needs approval before it can be sent.");renderPage();
 }
 function supTab(){
@@ -1899,7 +1918,7 @@ document.addEventListener("click",e=>{
   else if(a==="po")poModal(id);else if(a==="po-new")poNew(id);else if(a==="po-create")poCreate();else if(a==="po-addrow"){$("#poRows").insertAdjacentHTML("beforeend",poRowFn(poN++));const r=$("#poRows").lastElementChild;r.scrollIntoView({block:"nearest"});r.querySelector("select").focus()}else if(a==="po-next")poNext(id);else if(a==="po-book"){if(perm("po_dispatch","Creating an inbound shipment"))shipForm(id,"")}else if(a==="po-dispatch"){if(perm("po_dispatch","Recording dispatch"))trkForm("po",id)}else if(a==="po-edit")poEdit(id);else if(a==="po-approve")poApprove(id);else if(a==="trk-save")trkSave(t.dataset.k,id);else if(a==="veh")vehModal(id);else if(a==="app")appModal(id);else if(a==="cust-new")custNew();else if(a==="cust-create")custCreate();else if(a==="app-yes")appDecide(id,true);else if(a==="app-no")appDecide(id,false);else if(a==="veh-new")vehNew();else if(a==="veh-create")vehCreate();else if(a==="veh-maint")vehMaint(id);else if(a==="ship-edit")shipForm("",id);else if(a==="ship-save")shipSave(id,t.dataset.sh);else if(a==="sup-new")supNew();else if(a==="sup-create")supCreate();
   else if(a==="sup")supModal(id);else if(a==="bill")billModal(id);else if(a==="bill-pay")billPay(id);else if(a==="bill-req"){const b=BILLS.find(x=>x.id===id);b.req={by:ROLE,date:addDays(0)};closeModal();toast("Payment requested for "+b.id+". Accounting will see it on the bill.");renderPage()}
   else if(a==="cat-more"){FIL.catN=(FIL.catN||12)+12;renderCatalog()}
-  else if(a==="item-edit"){closeModal();itemEdit(id)}else if(a==="item-save")itemSave(id);else if(a==="adj-new")adjNew();else if(a==="adj-create")adjCreate();else if(a==="adj-yes")adjDecide(id,true);else if(a==="adj-no")adjDecide(id,false);
+  else if(a==="pdf-po")pdfPo(id);else if(a==="pdf-so")pdfSo(id);else if(a==="item-edit"){closeModal();itemEdit(id)}else if(a==="item-save")itemSave(id);else if(a==="adj-new")adjNew();else if(a==="adj-create")adjCreate();else if(a==="adj-yes")adjDecide(id,true);else if(a==="adj-no")adjDecide(id,false);
   else if(a==="exp-modal")exportModal();else if(a==="exp"){const tb=document.querySelector('[data-exp="'+id+'"]');if(tb)dlCsv(PAGES[page].replace(/[^A-Za-z]+/g,"-")+"-"+id,tblRows(tb))}
 });
 $("#acctForm").addEventListener("submit",e=>{e.preventDefault();const f=e.target.elements, a={id:"APP-"+(++appSeq),date:addDays(0),name:f[0].value.trim(),company:f[1].value.trim(),email:f[2].value.trim(),mobile:f[3].value.trim(),type:f[4].value,terms:parseInt(f[5].value.replace(/\D/g,""))||30,status:"Pending"};APPS.push(a);e.target.reset();toast("Application "+a.id+" received. We will contact you within one business day.")});
