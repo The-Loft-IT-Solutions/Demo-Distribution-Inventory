@@ -1309,10 +1309,10 @@ function pdfDoc(title,meta,head,rows,tot,note,left){
   window.print();
 }
 function pdfPo(id){const p=POS.find(x=>x.id===id),sp=SUP(p.sup);
-  pdfDoc("Purchase order "+p.id,[["Supplier",esc(p.sup)+", "+esc(sp.country)],["Date",dfmt(p.date)],["Expected",dfmt(p.expected)],["Deliver to",WH[p.wh]],["Payment terms",termLabelP(p)],["Down payment",dpLabel(p.dp||0)],["Rate",`US$1 = ${money(p.fx||FX)}`],["Status",poStatus(p)+(p.appr||p.status!=="Draft"?", approved":", awaiting approval")]],
+  pdfDoc("Purchase order "+p.id,[["Supplier",esc(p.sup)+", "+esc(sp.country)],["Date",dfmt(p.date)],["Expected",dfmt(p.expected)],["Deliver to",WH[p.wh]],["Payment terms",termLabelP(p)],["Down payment",dpLabel(p.dp||0)],["Rate",`US$1 = ${money(p.fx||FX)}`]]  ,
   ["Item (product no. / model no.)","Qty","Unit cost (USD)","Amount (USD)","Amount (PHP)"],p.lines.map(l=>[esc(I(l.sku).name),fq(l.sku,l.qty),fmtc("USD",poFc(p,l)),fmtc("USD",l.qty*poFc(p,l)),money(l.qty*l.cost)]),["Total","","",poUsd(p),money(poTotal(p))],"PHP amounts use the rate on this purchase order.")}
 function pdfSo(id){const o=ORDERS.find(x=>x.id===id),tot=o.lines.reduce((n,l)=>n+l.qty*I(l.sku).price,0);
-  pdfDoc("Sales order "+o.id,[["Customer",esc(CUSTNAME(o.cust))],["Date",dfmt(o.date)],["Channel",esc(o.ch||"Offline")],["Warehouse",WH[o.wh]],["Delivery",o.via==="Courier"?"Third-party courier":esc((vehOf(o)||{}).plate||"Own truck")+(o.driver?", "+esc(o.driver):"")],["Status",o.status+(o.delivered?", delivered "+dfmt(o.delivered):"")]],
+  pdfDoc("Sales order "+o.id,[["Customer",esc(CUSTNAME(o.cust))],["Date",dfmt(o.date)],["Channel",esc(o.ch||"Offline")],["Warehouse",WH[o.wh]],["Delivery",o.via==="Courier"?"Third-party courier":esc((vehOf(o)||{}).plate||"Own truck")+(o.driver?", "+esc(o.driver):"")]]  ,
   ["Item (product no. / model no.)","Qty","Unit price","Amount"],o.lines.map(l=>[esc(I(l.sku).name),fq(l.sku,l.qty),money(I(l.sku).price),money(l.qty*I(l.sku).price)]),["Total","","",money(tot)],o.part?"Partial delivery: "+esc(o.part):"")}
 /* ---------- exports ---------- */
 function dlCsv(name,rows){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+rows.map(r=>r.map(c=>'"'+String(c).replace(/\s+/g," ").trim().replace(/"/g,'""')+'"').join(",")).join("\r\n")],{type:"text/csv"}));a.download=name+".csv";document.body.appendChild(a);a.click();a.remove();toast("Exported "+name+".csv. It opens in Excel.")}
